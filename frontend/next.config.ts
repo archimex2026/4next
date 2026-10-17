@@ -13,7 +13,11 @@ if (backendOrigin) {
 const nextConfig: NextConfig = {
   output: 'standalone',
   // 15 MiB document plus multipart fields; match the backend's 16 MiB request cap.
-  experimental: { proxyClientMaxBodySize: 16 * 1024 * 1024 },
+  experimental: {
+    proxyClientMaxBodySize: 16 * 1024 * 1024,
+    // Allow bounded document analysis and the provider's fallback to finish upstream.
+    proxyTimeout: 120_000,
+  },
 };
 
 export default nextConfig;
