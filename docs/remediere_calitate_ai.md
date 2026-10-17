@@ -13,7 +13,8 @@
 ## Schimbări implementate
 
 - Extragere cu pdfplumber, deduplicare de glyph-uri și excluderea watermarkurilor mari diagonale. Operatorii C++ precum `++` și `<<` rămân intacți.
-- Explicațiile, cardurile și quizurile AI se păstrează după validarea structurii și limbii. Un apel separat verifică suportul în fragmentele citate; afirmațiile cu numere absente din dovezi sunt respinse și local.
+- Explicațiile, cardurile și quizurile AI se păstrează după validarea structurii și limbii. Un apel separat, cu un model verificator mai puternic (`gemini-3.8-flash`, cu failover tehnic către `gemini-3.6-flash` în același buget de 48 secunde), verifică suportul în fragmentele citate; afirmațiile cu numere absente din dovezi sunt respinse și local.
+- Ideile-cheie care inversează sensul sursei sunt eliminate dacă restul conținutului este susținut; explicațiile cu afirmații nesusținute sunt respinse. Un test real cu o afirmație despre portabilitate a confirmat respingerea inversării sensului.
 - Un card sau quiz opțional cu citare invalidă este omis; nu anulează lecțiile deja validate. Lecțiile fără citări valide rămân respinse.
 - Validarea limbii păstrează verificarea fiecărui câmp, cu o singură detecție limitată per câmp, pentru CPU-ul demo.
 - Citările folosesc ID-uri ale fragmentelor oferite de server. Serverul returnează textul exact și pagina reală, în loc să ceară modelului să reintroducă manual citate lungi.

@@ -152,6 +152,8 @@ async def analyze_book_with_gemini(book_title, author, extracted_text, language=
     data = await gemini_json(
             "Create a focused study course in the document language. Respect the study time, depth and selected keywords. "
             "Use only document facts, patient teacher explanations, retrieval questions and source-based quizzes. "
+            "Preserve negations, qualifications and distinctions exactly in meaning. Every individual key idea must "
+            "be directly supported by its citations, not merely related to the same topic. Avoid contradictory summaries. "
             "Scan ALL supplied pages before choosing a coherent sequence of topics. With a short session, give an overview "
             "across the document, not just its first page. Teach the subject, not the contents list or epigraph. "
             "Write at most " + str(min(12, math.ceil(study_minutes/5))) + " lessons, each with a distinct meaningful title, "
@@ -197,7 +199,7 @@ async def analyze_book_with_gemini(book_title, author, extracted_text, language=
             validate_output_language(" ".join(result[field] for field in ["title", "subtitle", "overview", "target_audience"]), language)
             stage = "evidence-check"
             items = [lesson for level in result["levels"] for lesson in level["lessons"]] + result["flashcards"] + result["quizzes"]
-            if not await verify_teaching(items, language):
+            if not await verify_teaching(items, language, context):
                 raise ValueError("Unsupported teaching content")
             result.update(keywords=extract_keywords(extracted_text), language=language,
                           generation_mode="ai_grounded", generation_detail="ai_explained_source")

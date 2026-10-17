@@ -64,7 +64,7 @@ class TeachingRegressions(unittest.TestCase):
     def test_general_document_question_is_answered_and_explanation_is_preserved(self):
         quote = {'page': 1, 'text': TEXT[:TEXT.index('.') + 1]}
         explanation = 'The document introduces variables, types, constants and loops. It explains how types affect the operations you can perform.'
-        async def provider(task, payload, language):
+        async def provider(task, payload, language, **kwargs):
             if 'Verify the proposed teaching' in task:
                 return {'supported': True}
             return {'answerable': True, 'answer': explanation, 'source_citations': [quote]}
@@ -101,3 +101,24 @@ class TeachingRegressions(unittest.TestCase):
         ranked = _retrieve('What is the difference between const and constexpr?', pages)
         self.assertTrue(ranked)
         self.assertGreaterEqual(ranked[0][0], .5)
+
+    def test_evidence_review_omits_reversed_key_idea_without_replacing_valid_explanation(self):
+        from app.services.study_ai import verify_teaching
+        item = {'long_explanation': 'A variable stores a typed value.',
+                'key_ideas': ['Variables store values.', 'Source code is not portable.'],
+                'source_citations': [{'page': 1, 'text': TEXT}]}
+        with patch('app.services.study_ai.gemini_json', return_value={'supported': True, 'remove_key_ideas': [{'item': 0, 'index': 1}]}):
+            self.assertTrue(asyncio.run(verify_teaching([item], 'en')))
+        self.assertEqual(item['key_ideas'], ['Variables store values.'])
+        self.assertEqual(item['long_explanation'], 'A variable stores a typed value.')
+
+    def test_verifier_failover_only_retries_unavailability_not_negative_verdicts(self):
+        from app.services.study_ai import verify_teaching
+        item = {'answer': 'A variable stores a typed value.', 'source_citations': [{'page': 1, 'text': TEXT}]}
+        with patch('app.services.study_ai.gemini_json', side_effect=[None, {'supported': True}]) as provider:
+            self.assertTrue(asyncio.run(verify_teaching([item], 'en')))
+            self.assertEqual(provider.call_count, 2)
+            self.assertEqual(provider.call_args.kwargs['model'], 'gemini-3.6-flash')
+        with patch('app.services.study_ai.gemini_json', return_value={'supported': False}) as provider:
+            self.assertFalse(asyncio.run(verify_teaching([item], 'en')))
+            provider.assert_called_once()
