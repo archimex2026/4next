@@ -43,7 +43,8 @@ def list_groups(user: dict = Depends(require_user)):
     with closing(get_db_connection()) as conn:
         rows = conn.execute("""SELECT g.*,
             (SELECT COUNT(*) FROM group_members WHERE group_id=g.id) member_count,
-            (SELECT COUNT(*) FROM group_materials WHERE group_id=g.id) material_count
+            (SELECT COUNT(*) FROM group_materials gm JOIN courses c ON c.id=gm.course_id
+                JOIN books b ON b.id=c.book_id WHERE gm.group_id=g.id AND b.deleted_at IS NULL) material_count
             FROM study_groups g JOIN group_members m ON m.group_id=g.id WHERE m.user_id=? ORDER BY g.created_at DESC""",
             (user["id"],)).fetchall()
         return [dict(row) for row in rows]
@@ -83,7 +84,7 @@ def get_group(group_id: str,user: dict = Depends(require_user)):
             b.title book_title,gm.shared_by FROM courses c JOIN books b ON b.id=c.book_id
             JOIN group_materials gm ON gm.course_id=c.id
             JOIN group_members sharer ON sharer.group_id=gm.group_id AND sharer.user_id=gm.shared_by
-            WHERE gm.group_id=? AND gm.shared_by=b.owner_id ORDER BY gm.created_at DESC""",(group_id,))]
+            WHERE gm.group_id=? AND gm.shared_by=b.owner_id AND b.deleted_at IS NULL ORDER BY gm.created_at DESC""",(group_id,))]
         for course in group["courses"]:
             course["language"] = course.pop("document_language")
         group["member_count"] = len(group["members"])

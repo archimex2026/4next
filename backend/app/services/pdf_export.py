@@ -37,6 +37,6 @@ def render_study_pdf(title, language, sections):
         pdf.set_text_color(35, 40, 38)
         # Control characters do not belong in a text PDF. Preserve all printable source text.
         content = "".join(char for char in str(content) if char.isprintable() or char in "\n\t")
-        pdf.multi_cell(0, 5.5, content.replace("\t", "    "), new_x=XPos.LMARGIN, new_y=YPos.NEXT, wrapmode="CHAR")
+        pdf.multi_cell(0, 5.5, content.replace("\t", "    "), new_x=XPos.LMARGIN, new_y=YPos.NEXT, wrapmode="WORD")
         pdf.ln(5)
     return bytes(pdf.output())

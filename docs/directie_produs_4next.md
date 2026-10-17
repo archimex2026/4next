@@ -1,59 +1,51 @@
 # Direcția produsului 4Next
 
-Acest document păstrează direcția de produs. Lista detaliată și starea cerințelor din cea mai recentă sesiune sunt în [brainstorming_implementare.md](brainstorming_implementare.md). Brainstormingul a mutat conturile, publicarea și preferințele de bază în funcțiile curente; personalizarea adaptivă avansată rămâne ulterioară.
+4Next îi ajută pe elevi și studenți să studieze din materialele proprii și să se pregătească pentru examene. Conturile, cursurile, exersarea și citările constituie baza curentă. [Checklistul de implementare](brainstorming_implementare.md) păstrează fiecare idee; [auditul de backend](backend_architecture_audit.md) separă funcțiile existente de tehnologiile și extinderile încă neimplementate.
 
-## Principii pentru AI-ul de studiu
+## Profesorul de studiu și limba sursei
 
-- AI-ul detectează limba materialului-sursă și generează lecții, explicații, flashcarduri, quizuri și recapitulări în aceeași limbă. Nu schimbă limba în mod implicit.
-- Se comportă ca un profesor răbdător: explică limpede, adaptează vocabularul la nivelul elevului, descompune ideile dificile în pași, oferă exemple și verifică înțelegerea.
-- Tonul poate fi încurajator și natural, dar produsul nu pretinde că AI-ul este o persoană sau un profesor uman.
-- Dacă o informație nu poate fi susținută de document, AI-ul spune clar acest lucru. Explicațiile suplimentare trebuie deosebite de ceea ce afirmă sursa.
-- O opțiune de traducere într-o altă limbă poate fi adăugată ulterior ca alegere explicită; nu înlocuiește regula implicită a limbii documentului.
+Materialele derivate păstrează limba documentului: română, engleză, franceză, germană, spaniolă sau italiană. Detectarea nesigură cere confirmarea limbii originale; o detecție sigură nu poate fi schimbată pentru a traduce implicit materialul. Limbile nesuportate sunt respinse explicit. O eventuală traducere rămâne o alegere viitoare separată.
 
-## Chat despre document
+Asistentul folosește un ton răbdător și îndrumări pedagogice, fără să pretindă că este un profesor uman. În versiunea strictă, aplicația afișează fragmente exacte din sursă și instrucțiuni de învățare localizate. Gemini poate selecta fragmentele, dar proza factuală liberă a modelului nu se afișează doar pentru că are o citare atașată. Această limită previne introducerea unor explicații care nu pot fi susținute de document. Fără serviciu disponibil, extragerea locală folosește același document real și este etichetată.
 
-Experiența va include o secțiune de chat legată de PDF-ul sau materialul deschis, inspirată de felul în care NotebookLM lucrează cu surse. Chatul trebuie să:
+## Chatul despre document
 
-- răspundă la întrebări specifice folosind materialul încărcat, nu doar cunoștințe generale ale modelului;
-- indice pagina, secțiunea sau fragmentul-sursă când acestea pot fi identificate;
-- spună când răspunsul nu se găsește în document și să nu inventeze un răspuns;
-- permită întrebări de continuare în contextul aceluiași material;
-- distingă afirmațiile din document de clarificările pedagogice adăugate de AI.
+Chatul funcționează în spațiul materialului și răspunde pe baza paginilor sau secțiunilor păstrate. O întrebare susținută primește un citat verificabil; o întrebare absentă primește un refuz în limba documentului. Întrebările de continuare folosesc ultima întrebare pentru căutare, fără a transforma istoricul în dovadă factuală. Conversația nu este încă salvată după reîncărcarea paginii. Materialele vechi fără sursă trebuie reîncărcate.
 
-**Criteriu de acceptare:** pentru o întrebare al cărei răspuns apare în PDF, chatul oferă un răspuns în limba documentului și o trimitere la sursă; pentru o întrebare al cărei răspuns lipsește, recunoaște limita documentului.
+Căutarea actuală este lexicală, cu selecție opțională Gemini. Nu promitem embeddinguri, vector search sau un profesor capabil să explice liber orice idee, independent de surse.
 
-## Pregătire pentru examene și programe școlare
+## Conturi resurse și colaborare
 
-Direcția produsului este pregătirea elevilor și studenților pentru examene, pornind de la materialele lor și, eventual, de la programa relevantă. Înaintea integrării unor surse externe, trebuie cercetate surse oficiale sau API-uri disponibile și verificate actualitatea, proveniența și condițiile de utilizare ale conținutului.
+Contul păstrează documentele, notițele, evidențierile și progresul individual. Preferințele includ timpul, profunzimea și obiectivul de examen; la upload pot fi alese conceptele de aprofundat. Un chestionar adaptiv mai amplu rămâne o etapă ulterioară.
 
-O integrare viitoare ar putea identifica materia, nivelul/clasa și examenul, apoi să asocieze materialul cu temele din programa potrivită și să arate ce este acoperit sau ce mai trebuie studiat. Programa trebuie să indice sursa și versiunea/anul; produsul nu trebuie să prezinte o mapare estimată de AI ca fiind oficială.
+Documentele sunt private implicit. Proprietarul poate publica sau retrage un material și îl poate partaja explicit în clase cu cod de invitație. Ratingurile publice au voturi reale. Accesul la sursă, export și media este verificat central, iar notițele rămân personale și când materialul este public.
 
-Această etapă depinde de alegerea examenelor și nivelurilor școlare vizate și de găsirea unor surse care pot fi folosite legal și fiabil. Până atunci, încărcarea de către elev a materialelor proprii rămâne fluxul de bază.
+Coșul de gunoi permite mutarea de către proprietar, restaurarea și ștergerea definitivă, cu expirare după cinci zile. Cât timp materialul este în coș, accesul public și cel acordat clasei este oprit. Implementarea și testele sunt consemnate în checklist. Recuperarea parolei, verificarea emailului și ștergerea completă de cont nu sunt încă funcții curente.
 
-## Conturi și personalizare
+## Pregătirea pentru examene
 
-Contul salvează documentele personale și preferințele de bază: timpul disponibil, profunzimea și obiectivul de examen. La încărcare, utilizatorul poate ajusta timpul și profunzimea și poate alege conceptele care îl interesează. Chestionare mai ample despre clasă, data examenului și nivelul perceput pot extinde ulterior această bază.
+Versiunea curentă salvează un obiectiv de examen și permite exersarea materiei încărcate. Identificarea programei oficiale și importul manualelor prin API nu sunt implementate. Înaintea lor alegem examenele, clasele și materiile prioritare, verificăm sursele oficiale și drepturile asupra conținutului. Programa afișată va trebui să indice sursa, anul și versiunea; o asociere estimată de AI nu se poate prezenta ca mapare oficială.
 
-Profilul trebuie să poată fi modificat, iar colectarea datelor să rămână minimă și explicată clar, cu atenție specială dacă produsul este folosit de minori.
+## Audio export și extinderi
 
-## Ordine de lucru propusă
+Audio completează studiul și se generează la cererea proprietarului, în RO/EN și în limba sursei. Ionuț lucrează la îmbunătățirea audio/video, separat de această rundă. Un pipeline premium și modul cinematic interactiv necesită integrare și teste înainte de a fi prezentate ca active.
 
-1. Conturi și acces privat implicit la documente, cu publicare și partajare explicită în clase.
-2. Regula limbii documentului, stil pedagogic, preferințe de studiu și chat ancorat în sursă.
-3. Evidențieri, export PDF și descoperirea materialelor/conceptelor înrudite.
-4. Alege examenele/nivelurile vizate și cercetează surse oficiale, drepturile de utilizare și felul în care se identifică programa.
-5. Evaluează integrarea programei și personalizarea adaptivă pe baza surselor și rezultatelor confirmate.
+PDF-ul local cu diacritice este disponibil pentru sursă, lecții, carduri, quiz și pachet complet. ILOVEAPI este o opțiune de conversie explorată de coleg, nu o dependență a exportului actual. Markdown și Anki rămân exporturi disponibile prin API.
 
-Ordinea este o propunere de produs și poate fi ajustată după discuția echipei și cerințele hackathonului.
+Serverul AI propriu gratuit, cheile personale ale furnizorilor, camerele cu profesor personalizat/antrenare și biblioteca de nișă cu plată sunt extensii pentru pitch. Necesită infrastructură, licențe, evaluare și finanțare. Nu există prețuri, reduceri sau plăți active.
 
-## Scenariu de verificare a direcției
+## Demo și prezentare
 
-Un elev încarcă un material. 4Next generează în limba acelui material o explicație pe înțelesul lui, flashcarduri și întrebări de verificare. Elevul întreabă chatul ceva despre PDF și primește un răspuns cu pagina relevantă; dacă PDF-ul nu conține răspunsul, chatul spune asta. Într-o etapă ulterioară, elevul poate lega materialul de o programă oficială pentru examenul și nivelul selectate.
+Demo-ul trebuie să arate un material permis pentru utilizare, alegerea conceptelor, o lecție, un răspuns cu citat și un quiz. Verificăm separat refuzul unei întrebări absente și izolarea materialului privat. Nu există încă rezultate măsurate privind eficiența învățării; un pilot trebuie să măsoare timpul până la recapitulare și înțelegerea materiei.
 
-## Decizii care rămân deschise
+Frontendul poate fi găzduit pe Vercel; API-ul, SQLite și fișierele necesită persistență și o configurație compatibilă cu autentificarea prin cookie. Linkul public se comunică după testarea fluxului complet. Cheia Gemini rămâne secret de backend și nu se introduce în frontend, documente sau prezentare.
 
-- Ce examene, materii și niveluri școlare vor fi prioritare?
-- Ce formate și limbi de document vor fi susținute și cum va fi identificată limba?
-- Ce surse oficiale/API-uri pentru programe și manuale pot fi folosite, cu ce licențe și actualitate?
-- Ce nivel de citare poate oferi fiecare format: pagină, secțiune sau fragment?
-- Ce date de personalizare sunt necesare și ce protecții sunt potrivite pentru utilizatorii minori?
+Templateul PowerPoint a fost inspectat, fără modificare. Structura sa și cronometrarea sunt în [prezentare_template.md](prezentare_template.md). Prezentarea Canva se realizează ulterior, cu maximum zece pagini totale la depunere, păstrând declararea bazei preexistente Book2Sound/Book2Course și clarificarea eligibilității cu organizatorii.
+
+## Decizii deschise
+
+- Examenul, materia și nivelul prioritare pentru pilot.
+- Sursele oficiale și licențele pentru programe/manuale.
+- Rezultatele măsurate cu utilizatori și ce responsabilitate are fiecare membru.
+- Protecția datelor și procedurile pentru conturi folosite de minori.
+- Găzduirea persistentă și costul real al serviciilor AI înaintea unui abonament.

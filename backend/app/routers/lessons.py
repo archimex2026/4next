@@ -8,6 +8,7 @@ from app.security import check_course_access, optional_user, require_user
 from app.routers.courses import user_lesson
 from app.services.audio_generator import generate_audio_lesson, DEFAULT_VOICES
 from app.generation_limits import generation_slot
+from app.services.trash import _cleanup_path, drain_file_cleanup
 
 router = APIRouter(prefix="/api/lessons", tags=["Lessons"])
 
@@ -96,7 +97,19 @@ def regenerate_lesson_audio(lesson_id: str,req: GenerateAudioRequest | None=Body
                     action_items=lesson["action_items"],lang=language,voice=voice,rate=req.rate or "+0%",return_details=True)
             except Exception:
                 raise HTTPException(503,"Serviciul audio nu este disponibil momentan. Lecția poate fi citită în continuare.") from None
-        conn.execute(f"""UPDATE lessons SET audio_url=?,audio_url_{language}=?,transcript=?,transcript_{language}=?,duration=? WHERE id=?""",
-            (audio_url,audio_url,json.dumps(scenes),json.dumps(scenes),f"{max(1,round(duration/60))} min",lesson_id))
-        conn.commit()
+            # A delete can finish while the provider runs. Recheck inside the write transaction
+            # so deletion either cleans this committed media or wins and we remove the late file.
+            try:
+                with conn:
+                    conn.execute("BEGIN IMMEDIATE")
+                    checked_lesson(conn,lesson_id,user,write=True)
+                    conn.execute(f"""UPDATE lessons SET audio_url=?,audio_url_{language}=?,transcript=?,transcript_{language}=?,duration=? WHERE id=?""",
+                        (audio_url,audio_url,json.dumps(scenes),json.dumps(scenes),f"{max(1,round(duration/60))} min",lesson_id))
+            except HTTPException:
+                name = f"{lesson_id}_{language}.mp3"
+                if _cleanup_path("audio",name) is not None:
+                    with conn:
+                        conn.execute("INSERT OR IGNORE INTO trash_file_cleanup(kind,name) VALUES('audio',?)",(name,))
+                    drain_file_cleanup()
+                raise
     return get_lesson(lesson_id,language,user)

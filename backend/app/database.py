@@ -144,7 +144,7 @@ def init_db():
     for column in (
         "owner_id TEXT", "visibility TEXT NOT NULL DEFAULT 'private'", "source_text TEXT DEFAULT ''",
         "source_pages TEXT DEFAULT '[]'", "keywords TEXT DEFAULT '[]'", "focus_keywords TEXT DEFAULT '[]'", "study_minutes INTEGER DEFAULT 20",
-        "depth TEXT DEFAULT 'standard'", "generation_mode TEXT DEFAULT 'extractive'",
+        "depth TEXT DEFAULT 'standard'", "generation_mode TEXT DEFAULT 'extractive'", "deleted_at INTEGER",
     ):
         safe_add_column("books", column)
     if legacy_books:
@@ -225,6 +225,10 @@ def init_db():
         text TEXT NOT NULL, color TEXT NOT NULL DEFAULT 'yellow', created_at TEXT DEFAULT CURRENT_TIMESTAMP
     );
     CREATE INDEX IF NOT EXISTS idx_books_owner ON books(owner_id);
+    CREATE INDEX IF NOT EXISTS idx_books_deleted_at ON books(deleted_at);
+    CREATE TABLE IF NOT EXISTS trash_file_cleanup (
+        kind TEXT NOT NULL, name TEXT NOT NULL, PRIMARY KEY(kind,name)
+    );
     CREATE INDEX IF NOT EXISTS idx_courses_book ON courses(book_id);
     CREATE INDEX IF NOT EXISTS idx_sessions_expiry ON sessions(expires_at);
     CREATE INDEX IF NOT EXISTS idx_notes_user_lesson ON notes(user_id, lesson_id);

@@ -1,5 +1,5 @@
 import { Book, Course, Lesson, Flashcard, QuizQuestion, QuizResult } from './types';
-export const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+export const API_BASE = (process.env.NEXT_PUBLIC_API_URL ?? (process.env.NODE_ENV === 'production' ? '' : 'http://localhost:8000')).replace(/\/+$/, '');
 export class ApiError extends Error {
     constructor(message: string, public status: number) { super(message); }
 }

@@ -2,7 +2,7 @@
 
 4Next este un spațiu de studiu pentru elevi și studenți: adaugi materialele tale, alegi conceptele, timpul și profunzimea, apoi studiezi prin lecții, flashcarduri, quizuri și întrebări ancorate în sursă. Pregătirea pentru examene este direcția produsului.
 
-Versiunea curentă este un prototip funcțional local. Lucrăm pe branch-ul **flavius**; funcțiile pentru finanțare sunt prezentate separat în pagina „Ce urmează”.
+Versiunea curentă este un prototip funcțional, cu infrastructură pentru un demo temporar pe Vercel. Lucrăm pe branch-ul **flavius**; funcțiile pentru finanțare sunt prezentate separat în pagina „Ce urmează”.
 
 ## Funcții disponibile
 
@@ -10,6 +10,7 @@ Versiunea curentă este un prototip funcțional local. Lucrăm pe branch-ul **fl
 | --- | --- |
 | Cont | Înregistrare, login/logout, sesiuni cu cookie HttpOnly, preferințe de timp/profunzime și obiectiv de examen. |
 | Materiale | PDF, EPUB, DOCX, TXT, MD sau text lipit; analiză înainte de generare, concepte selectabile, sursă păstrată. |
+| Coș | Ștergere reversibilă pentru cinci zile, restaurare ca material privat și ștergere definitivă. Expirarea se verifică la pornire și la solicitările API. |
 | Limbă | Detectare automată pentru română, engleză, franceză, germană, spaniolă și italiană. Cazurile nesigure cer confirmarea limbii originale. |
 | Studiu | Lecții cu fragmente citate, flashcarduri și quizuri din sursă; progresul și notițele sunt personale. |
 | Chat | Caută în document, indică pagini/fragmente și refuză întrebările pentru care nu găsește suport. Conversația curentă rămâne în memoria paginii. |
@@ -31,7 +32,7 @@ Documentele de peste 100.000 de caractere folosesc extragerea locală pentru con
 
 ## Limite și funcții viitoare
 
-Upload: maximum **15 MB**, **500 de pagini PDF**, **1.000.000 de caractere**; arhivele sunt limitate și după decomprimare. PDF-urile scanate necesită OCR înainte de încărcare. Fișierele DOC vechi trebuie convertite în DOCX. Limbile nesuportate sunt respinse explicit, fără traducere automată.
+Upload: maximum **15 MB local** (**4 MB în demo-ul prin proxy Vercel**), **500 de pagini PDF**, **1.000.000 de caractere**; arhivele sunt limitate și după decomprimare. PDF-urile scanate necesită OCR înainte de încărcare. Fișierele DOC vechi trebuie convertite în DOCX. Limbile nesuportate sunt respinse explicit, fără traducere automată.
 
 Limite pe cont: 5 generări de materiale/minut și 30/zi; audio 3/minut și 20/zi; inspecție 10/minut; chat 15/minut. Maximum trei generări simultane pe proces și una pentru același cont. Cotele pentru upload/audio sunt păstrate în SQLite; concurența și limita chatului sunt locale procesului.
 
@@ -72,23 +73,27 @@ backend\.venv\Scripts\python.exe -m coverage report
 cd frontend
 npm run lint
 npx tsc --noEmit
+node --test tests/proxy.test.mjs
 npm run build
 ```
 
-Ultima verificare locală: **52/52 teste backend**, **89% acoperire pentru codul activ**, lint fără erori/avertismente, TypeScript și build reușite.
+Ultima verificare locală: **68/68 teste backend**, **90% acoperire pentru codul activ**, **3/3 teste proxy frontend**, lint fără erori/avertismente, TypeScript și build reușite.
 
 Sunt testate autentificarea și expirarea sesiunilor, izolarea între conturi, publicarea/ratingurile, revocarea accesului în clase, limba/citările, atacurile prin documente, uploadurile, PDF-ul Unicode și limitele de utilizare. Testele folosesc baze temporare și modele simulate, fără servicii plătite. Acoperirea configurată exclude generatoarele video/diagrame moștenite care nu sunt conectate la fluxul curent. GitHub Actions rulează verificările pentru push pe `flavius`/`main` și pentru PR-uri.
 
 ## Stocare și lansare
 
-SQLite, uploadurile și media sunt locale și excluse din Git. Docker Compose definește stocare persistentă pentru baza de date și directoarele media/upload; configurația nu a fost validată într-un deployment public.
+SQLite, uploadurile și media sunt locale și excluse din Git. Instanța demo folosește o bază și directoare separate, fără copierea datelor locale personale. Docker Compose definește stocare persistentă pentru baza de date și directoarele media/upload; configurația nu a fost validată într-un deployment public.
 
-Vercel rămâne destinația propusă pentru interfață. Publicarea completă necesită backend și stocare persistente, HTTPS, `COOKIE_SECURE=true`, origini CORS explicite și o configurație frontend/API compatibilă cu cookie-urile SameSite. Sistemul curent este potrivit pentru o singură instanță; extinderea cere cozi și limite comune tuturor workerilor. Textele juridice sunt drafturi pentru prototip.
+Proiectul Vercel este configurat pentru alternativa `4next-study.vercel.app`; `4next.vercel.app` este ocupat. Proxy-ul păstrează API-ul și cookie-urile pe aceeași origine. Backendul demo este izolat, cu HTTPS prin tunel și autentificare secretă între servere; baza rămâne pe acest PC. Demo-ul depinde de PC, backend și tunel pornite. Publicarea și testarea URL-ului sunt în curs. Instrucțiuni de repornire, secrete, limite și migrare la găzduire persistentă: [deployment_demo.md](docs/deployment_demo.md). Integrarea automată Vercel–GitHub încă necesită conectarea repo-ului; push-ul singur nu publică site-ul. Textele juridice sunt drafturi pentru prototip.
 
 ## Documente de lucru
 
 - [Checklist și brainstorming complet](docs/brainstorming_implementare.md)
 - [Direcția produsului](docs/directie_produs_4next.md)
 - [Sistemul vizual](DESIGN.md)
+- [Auditul celor 30 de puncte din planul backend](docs/backend_architecture_audit.md)
+- [Structura templateului de pitch](docs/prezentare_template.md)
+- [Documentul de lucru actualizat](docs/4Next_document_de_lucru_hackathon.docx)
 
 Proiectul evoluează din baza preexistentă Book2Sound/Book2Course. Această proveniență trebuie declarată în materialele de concurs. Prezentarea Canva și livrabilele finale de hackathon se pregătesc după stabilizarea demo-ului.

@@ -9,12 +9,14 @@ from app.database import get_db_connection, init_db
 from app.security import check_course_access, optional_user
 from app.request_limits import RequestBodyLimitsMiddleware
 from app.services.demo_seeder import seed_demo_data
-from app.routers import auth, books, community, courses, lessons, flashcards, quizzes, demo, export, groups, study
+from app.routers import auth, books, community, courses, lessons, flashcards, quizzes, demo, export, groups, study, trash
+from app.services.trash import purge_expired_materials
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
+    purge_expired_materials()
     seed_demo_data(generate_media_assets=False)
     yield
 
@@ -65,7 +67,7 @@ def protected_media(media_path: str,user: dict | None=Depends(optional_user)):
 
 
 for router in (auth.router,community.router,books.router,courses.router,lessons.router,flashcards.router,
-    quizzes.router,demo.router,export.router,groups.router,study.router):
+    quizzes.router,demo.router,export.router,groups.router,study.router,trash.router):
     app.include_router(router)
 
 

@@ -13,6 +13,7 @@ Lucrarea este mare: modifică autentificarea, drepturile asupra materialelor, ge
 | C03 | Rating 1–5 și număr de voturi | Un vot per cont și material public; media și numărul de voturi sunt calculate din baza de date. | Implementat și verificat |
 | C04 | Limba documentului | Detectare cu tratarea ambiguității; materialele și răspunsurile respectă limba sursei. | Implementat și verificat |
 | C05 | Export PDF | Export lizibil, cu diacritice, pentru sursă, lecții, flashcarduri, quiz și pachetul complet. ILOVEAPI este o propunere de integrare; exportul local evită necesitatea unei chei plătite. | Implementat și verificat |
+| C07 | Coș și restaurare | Proprietarul mută materialul în coș, îl poate restaura sau șterge definitiv; după cinci zile expiră. Accesul public și partajat este oprit cât timp este în coș. | Implementat și verificat prin teste în sesiunea curentă |
 | C06 | Termeni și condiții | Pagină accesibilă; acord la creare cont și confirmarea drepturilor înainte de publicare. Textul juridic este un draft pentru prototip. | Pagină disponibilă; revizuire juridică înainte de lansare |
 | S01 | Text highlighting | Selectarea unui fragment din sursă și salvarea evidențierii în cont, cu pagina și pozițiile sale. | Implementat și verificat |
 | S02 | Cuvinte-cheie și aprofundare | Concepte extrase din sursă și opțiunea de a alege ce se studiază. | Implementat și verificat |
@@ -57,7 +58,7 @@ Acestea apar ca „În pregătire”, cu dependențele explicate. Nu există tar
 
 ## Evidența livrării
 
-Lucrările sunt pe branch-ul `flavius`. C01–C05, S01–S05, G01–G02 și A01 sunt conectate la fluxuri reale. C06 este disponibil ca draft de prototip. F01–F06 și integrarea programei oficiale sunt prezentate în `/roadmap` ca „În pregătire”; nu sunt servicii active.
+Lucrările pornesc de pe branch-ul `flavius`; merge-ul pe `main` și publicarea se consemnează după verificarea finală. C01–C05, S01–S05, G01–G02 și A01 sunt conectate la fluxuri reale. C06 este disponibil ca draft de prototip. F01–F06 și integrarea programei oficiale sunt prezentate în `/roadmap` ca „În pregătire”; nu sunt servicii active.
 
 - [x] Conturi, sesiuni, expirare/logout, preferințe și termeni la înregistrare.
 - [x] Upload privat implicit, publicare/retragere, ratinguri reale și căutare inclusiv în cuvinte-cheie.
@@ -79,7 +80,7 @@ Lucrările sunt pe branch-ul `flavius`. C01–C05, S01–S05, G01–G02 și A01 
 
 ### Verificări efectuate
 
-**Rezultat local: 52/52 teste backend trecute**, lint fără erori/avertismente, TypeScript și build de producție reușite.
+**Bază verificată anterior: 52/52 teste backend trecute**, lint fără erori/avertismente, TypeScript și build de producție reușite.
 
 Suita backend folosește baze temporare și verifică accesul între conturi, expirarea sesiunilor, ratingurile, revocarea accesului, limba, citările reale și false, prompt injection, numele de fișiere, arhivele, highlights, PDF-ul și limitele de utilizare. Acoperirea măsurată pentru codul activ este 89%; configurația exclude explicit generatoarele video/diagrame moștenite care nu sunt apelate de fluxul curent.
 
@@ -94,3 +95,24 @@ Chatul strict oferă citate verificate și îndrumare pedagogică, nu o explica�
 Cotele upload/audio sunt comune instanțelor care folosesc aceeași bază SQLite. Concurența și limita chatului rămân per proces; sunt necesare o coadă comună și limite la proxy pentru extindere. SQLite și directoarele locale trebuie înlocuite sau găzduite persistent înainte de Vercel/publicare.
 
 Referințe tehnice primare folosite la verificare: [FastAPI CORS](https://fastapi.tiangolo.com/tutorial/cors/), [OWASP Session Management](https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html), [OWASP LLM Prompt Injection Prevention](https://cheatsheetseries.owasp.org/cheatsheets/LLM_Prompt_Injection_Prevention_Cheat_Sheet.html).
+
+## Cerințe din citeste asta și coordonarea echipei
+
+Runda din 17 octombrie adaugă cerințele din `H:\4Next\citeste_asta.txt`. Fișierul a fost citit integral înainte de executare, iar pluginurile de audit, implementare, design, GitHub, Vercel și documente au fost aprobate de Flavius. Canva rămâne destinat etapei ulterioare; PPTX-ul este doar inspectat.
+
+- [x] C07: ștergere în coș, restaurare, ștergere definitivă și expirare după cinci zile, cu teste pentru drepturi și revocarea accesului.
+- [x] Reverificarea exporturilor PDF pe documente reale, în toate cele cinci variante, inclusiv diacritice și acces privat.
+- [x] Compararea tuturor celor 30 de puncte ale planului în [auditul de backend](backend_architecture_audit.md), cu diferențele și alternativele explicate. Auditul nu afirmă implementarea integrală a planului enterprise.
+- [x] Citirea tuturor paginilor și randarea templateului PPTX, fără modificare; structură în [prezentare_template.md](prezentare_template.md).
+- [x] Actualizarea documentului Word de proiect; validare structurală și verificare vizuală a tuturor celor șase pagini după export PDF printr-o instanță Microsoft Word proprie, ascunsă și închisă la final. PDF/PNG sunt doar intermediari locali de QA.
+- [ ] Backend persistent, secret Gemini pe server, configurație HTTPS/cookie/CORS și test public complet înainte de a declara lansarea funcțională.
+- [ ] Confirmarea diferențelor de pe `main` și `flavius`, verificări finale, apoi merge fără suprascrierea muncii echipei.
+- [ ] `4next.vercel.app` sau alternativă legată de studiu numai după verificarea disponibilității și a deploymentului real.
+
+Ionuț lucrează separat la audio/video. Pipelineul premium Gemini TTS, normalizarea audio și modul video nu se declară integrate înainte de review și testare. Un coleg explorează ILOVEAPI pentru conversie PDF; exportul curent funcționează local cu fpdf2, fără cheie de conversie. Nu suprapunem aceste direcții prin înlocuiri speculative.
+
+Cele 52 de teste și 89% acoperire documentate mai sus sunt baseline-ul rundei anterioare. Rezultatele noilor teste și starea publicării se actualizează după execuție; nu sunt presupuse reușite din existența codului.
+
+Actualizare în cursul rundei: cheia Gemini a răspuns unui apel JSON real. `4next.vercel.app` este indisponibil; alternativa rezervată este `4next-study.vercel.app`. Demo-ul pregătit are backend izolat pe portul 18000, bază/fișiere separate și gateway protejat. Publicarea completă rămâne în verificare; rezervarea adresei nu confirmă funcționarea fluxului public.
+
+Verificare nouă din această rundă: **68/68 teste backend, 90% acoperire pentru codul activ, 3/3 teste proxy frontend**, lint, TypeScript și build de producție reușite. Gateway-ul izolat respinge accesul direct fără secret, iar răspunsul Next real nu expune antetele interne. Generarea reală Gemini a produs un material `ai_grounded`. Detalii de deployment în [deployment_demo.md](deployment_demo.md).

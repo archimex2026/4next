@@ -201,19 +201,20 @@ class StudyAPITests(unittest.TestCase):
         from fastapi import FastAPI
         from fastapi.testclient import TestClient
         from app.database import init_db
-        from app.routers import auth, books, study
+        from app.routers import auth, books, study, trash
         self.folder = tempfile.TemporaryDirectory()
         self.root = Path(self.folder.name)
         self.upload_dir = self.root / "uploads"
         self.upload_dir.mkdir()
         self.patches = [patch("app.database.DB_PATH", self.root / "test.db"),
                         patch("app.routers.books.UPLOAD_DIR", self.upload_dir),
+                        patch("app.services.trash.UPLOAD_DIR", self.upload_dir),
                         patch("app.services.study_ai.GEMINI_API_KEY", "")]
         for item in self.patches:
             item.start()
         init_db()
         app = FastAPI()
-        for router in [auth.router, books.router, study.router]:
+        for router in [auth.router, books.router, study.router, trash.router]:
             app.include_router(router)
         self.alice, self.bob, self.anon = TestClient(app), TestClient(app), TestClient(app)
         for client, name in [(self.alice, "alice"), (self.bob, "bob")]:
@@ -303,14 +304,17 @@ class StudyAPITests(unittest.TestCase):
         self.assertEqual(suggestions.status_code, 200, suggestions.text)
         self.assertTrue(suggestions.json()["google_url"].startswith("https://www.google.com/search?"))
 
-    def test_deleting_owned_book_removes_source_and_related_study_data(self):
+    def test_deleting_owned_book_keeps_source_until_permanent_delete(self):
         uploaded = self.upload()
         book_url = f"/api/books/{uploaded['book_id']}"
         self.assertEqual(self.bob.delete(book_url).status_code, 404)
         deleted = self.alice.delete(book_url)
         self.assertEqual(deleted.status_code, 200, deleted.text)
-        self.assertEqual(list(self.upload_dir.iterdir()), [])
+        self.assertEqual(deleted.json()["status"],"trashed")
+        self.assertEqual(len(list(self.upload_dir.iterdir())),1)
         self.assertEqual(self.alice.get(book_url).status_code, 404)
+        self.assertEqual(self.alice.delete("/api/trash/"+uploaded["course_id"]).status_code,200)
+        self.assertEqual(list(self.upload_dir.iterdir()), [])
 
     def test_upload_budget_rejects_before_provider_and_cleans_rejected_source(self):
         with patch("app.generation_limits.time.time",return_value=864001):

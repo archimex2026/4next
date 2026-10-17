@@ -14,6 +14,7 @@ from app.services.language import detect_document_language, resolve_language, La
 from app.services.ai_analyzer import analyze_book_with_gemini
 from app.services.study_ai import extract_keywords, fold
 from app.generation_limits import consume_budget, generation_slot
+from app.services.trash import move_book_to_trash
 
 router = APIRouter(prefix="/api/books", tags=["Books"])
 MAX_UPLOAD_BYTES = 15 * 1024 * 1024
@@ -191,19 +192,9 @@ def get_book(book_id: str, user=Depends(optional_user)):
 
 @router.delete("/{book_id}")
 def delete_book(book_id: str, user=Depends(require_user)):
-    with closing(get_db_connection()) as conn:
+    with closing(get_db_connection()) as conn, conn:
+        conn.execute("BEGIN IMMEDIATE")
         book = check_book_access(conn, book_id, user, write=True)
-        with conn:
-            course_ids = [row["id"] for row in conn.execute("SELECT id FROM courses WHERE book_id=?", (book_id,))]
-            existing_tables = {row["name"] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
-            for course_id in course_ids:
-                for table in ["highlights", "group_materials", "quiz_attempts", "notes", "flashcards", "quizzes", "lessons", "levels"]:
-                    if table in existing_tables:
-                        conn.execute(f"DELETE FROM {table} WHERE course_id=?", (course_id,))
-            conn.execute("DELETE FROM courses WHERE book_id=?", (book_id,))
-            conn.execute("DELETE FROM books WHERE id=?", (book_id,))
-    # Only delete an upload inside the configured directory; legacy/demo paths may be elsewhere.
-    stored = Path(book.get("file_path") or "")
-    if stored.is_file() and stored.resolve().parent == UPLOAD_DIR.resolve():
-        stored.unlink(missing_ok=True)
-    return {"status": "deleted", "book_id": book_id}
+        result = move_book_to_trash(conn,book)
+        course = conn.execute("SELECT id FROM courses WHERE book_id=?",(book_id,)).fetchone()
+    return {**result,"course_id":course["id"] if course else None}

@@ -3,7 +3,8 @@ from contextlib import closing
 from typing import Literal
 from fastapi import APIRouter, Depends, Query
 from app.database import get_db_connection
-from app.security import can_read_book, check_course_access, optional_user, personal_completion, safe_book
+from app.security import can_read_book, check_course_access, optional_user, require_user, personal_completion, safe_book
+from app.services.trash import move_book_to_trash
 
 router = APIRouter(prefix="/api/courses", tags=["Courses"])
 
@@ -44,7 +45,7 @@ def list_courses(view: Literal["mine","public","all"]="all",q: str=Query(default
             COALESCE((SELECT ROUND(AVG(stars),1) FROM ratings WHERE book_id=b.id),0) rating_average,
             (SELECT COUNT(*) FROM ratings WHERE book_id=b.id) rating_count,
             (SELECT stars FROM ratings WHERE book_id=b.id AND user_id=?) user_rating
-            FROM courses c JOIN books b ON b.id=c.book_id ORDER BY c.created_at DESC""",
+            FROM courses c JOIN books b ON b.id=c.book_id WHERE b.deleted_at IS NULL ORDER BY c.created_at DESC""",
             (user["id"] if user else "",)).fetchall()
         results = []
         # ponytail: one library scan for the prototype; paginate/filter in SQL when libraries grow.
@@ -92,3 +93,12 @@ def get_course_detail(course_id: str,user: dict | None=Depends(optional_user)):
 def get_learning_path(course_id: str,user: dict | None=Depends(optional_user)):
     course = get_course_detail(course_id,user)
     return {"course_id":course_id,"title":course["title"],"levels":course["levels"]}
+
+
+@router.delete("/{course_id}")
+def trash_course(course_id: str,user: dict=Depends(require_user)):
+    with closing(get_db_connection()) as conn, conn:
+        conn.execute("BEGIN IMMEDIATE")
+        course = check_course_access(conn,course_id,user,write=True)
+        result = move_book_to_trash(conn,{"id":course["book_id"]})
+    return {**result,"course_id":course_id}

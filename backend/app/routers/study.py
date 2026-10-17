@@ -129,7 +129,8 @@ def get_suggestions(course_id: str, concept: str = Query("", max_length=100), us
         source_tokens = tokens(" ".join(keywords))
         courses = []
         for row in conn.execute("""SELECT c.id,c.title,c.book_id,b.keywords,b.visibility,b.owner_id,
-            b.id AS source_book_id,b.cover_color,b.language FROM courses c JOIN books b ON c.book_id=b.id WHERE c.id<>?""", (course_id,)):
+            b.id AS source_book_id,b.cover_color,b.language FROM courses c JOIN books b ON c.book_id=b.id
+            WHERE c.id<>? AND b.deleted_at IS NULL""", (course_id,)):
             candidate = dict(row)
             if candidate["language"] != book["language"]:
                 continue

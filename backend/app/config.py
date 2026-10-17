@@ -3,8 +3,10 @@ from pathlib import Path
 
 # Paths
 BASE_DIR = Path(__file__).resolve().parent.parent
-UPLOAD_DIR = BASE_DIR / "uploads"
-MEDIA_DIR = BASE_DIR / "media"
+# Separate demo instances must never reuse local users, uploads, or media.
+DATA_DIR = Path(os.getenv("DATA_DIR", str(BASE_DIR))).expanduser().resolve()
+UPLOAD_DIR = DATA_DIR / "uploads"
+MEDIA_DIR = DATA_DIR / "media"
 
 # Ensure dirs exist
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
@@ -26,7 +28,7 @@ if env_file.exists():
 
 # Settings
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
-DB_PATH = Path(os.getenv("DATABASE_PATH", str(BASE_DIR / "book2course.db"))).expanduser().resolve()
+DB_PATH = Path(os.getenv("DATABASE_PATH", str(DATA_DIR / "book2course.db"))).expanduser().resolve()
 DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 APP_PORT = int(os.getenv("PORT", "8000"))
 DATABASE_URL = f"sqlite:///{DB_PATH}"

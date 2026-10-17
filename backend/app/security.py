@@ -33,6 +33,8 @@ def token_hash(token: str) -> str:
 
 
 def optional_user(request: Request) -> dict | None:
+    from app.services.trash import purge_expired_materials
+    purge_expired_materials()
     token = request.cookies.get(SESSION_COOKIE_NAME)
     if not token:
         return None
@@ -51,6 +53,8 @@ def require_user(request: Request) -> dict:
 
 
 def can_read_book(conn, book: dict, user: dict | None) -> bool:
+    if book.get("deleted_at") is not None:
+        return False
     if book["visibility"] == "public":
         return True
     if not user:
@@ -68,7 +72,7 @@ def can_read_book(conn, book: dict, user: dict | None) -> bool:
 def check_book_access(conn, book_id: str, user: dict | None, write: bool = False) -> dict:
     row = conn.execute("SELECT * FROM books WHERE id=?", (book_id,)).fetchone()
     book = dict(row) if row else None
-    allowed = book and ((user and book.get("owner_id") == user["id"]) if write else can_read_book(conn, book, user))
+    allowed = book and book.get("deleted_at") is None and ((user and book.get("owner_id") == user["id"]) if write else can_read_book(conn, book, user))
     if not allowed:
         raise HTTPException(404, "Materialul nu a fost găsit sau nu ai acces la el.")
     return book

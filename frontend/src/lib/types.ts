@@ -213,3 +213,12 @@ export interface StudyGroup {
     }[];
     courses?: Course[];
 }
+export interface TrashedCourse {
+    id: string;
+    book_id: string;
+    title: string;
+    description: string;
+    deleted_at: string;
+    purge_at: string;
+    language?: string;
+}
