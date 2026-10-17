@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+
+# Local database, uploaded documents, and generated media
+backend/book2course.db
+backend/uploads/
+backend/media/
+backend/test_*.mp3
+
+# Frontend dependencies and build output
+frontend/node_modules/
+frontend/.next/
+frontend/tsconfig.tsbuildinfo
+
+# Local agent instructions and test input
+AGENTS.md
+**/AGENTS.md
+/test_architecture.pdf

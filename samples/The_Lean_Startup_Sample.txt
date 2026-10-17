@@ -1,0 +1,35 @@
+THE LEAN STARTUP: HOW TODAY'S ENTREPRENEURS USE CONTINUOUS INNOVATION TO CREATE RADICALLY SUCCESSFUL BUSINESSES
+By Eric Ries
+
+CHAPTER 1: START
+A startup is a human institution designed to create a new product or service under conditions of extreme uncertainty. The goal of a startup is to figure out the right thing to build—the thing customers want and will pay for—as quickly as possible.
+
+CHAPTER 2: DEFINE
+The Lean Startup model is designed to teach you how to drive a startup. Instead of making complex plans that are based on a lot of assumptions, you can make frequent adjustments through a Build-Measure-Learn feedback loop.
+
+CHAPTER 3: LEARN
+Validated learning is the process of demonstrating empirically that a team has uncovered valuable truths about a startup's present and future business prospects. It is more concrete, more accurate, and faster than market forecasting or classical business planning.
+
+CHAPTER 4: EXPERIMENT
+Every startup experiment follows the scientific method. Begin with a clear hypothesis that predicts what is supposed to happen. Then test those predictions empirically.
+
+CHAPTER 5: LEAP
+Every business plan begins with a set of assumptions. The leap-of-faith assumptions are the two most important: the value hypothesis and the growth hypothesis.
+
+CHAPTER 6: TEST (THE MINIMUM VIABLE PRODUCT)
+A Minimum Viable Product (MVP) helps entrepreneurs start the process of learning as quickly as possible. It is not necessarily the smallest product imaginable, though; it is simply the fastest way to get through the Build-Measure-Learn feedback loop with the minimum amount of effort.
+
+CHAPTER 7: MEASURE
+Startups need a new kind of accounting specifically designed for early-stage ventures: innovation accounting. Do not be seduced by vanity metrics like total signups or gross page impressions. Focus on actionable, accessible, and auditable metrics that reflect real cohort retention.
+
+CHAPTER 8: PIVOT (OR PERSEVERE)
+A pivot is a structured course correction designed to test a new fundamental hypothesis about the product, strategy, and engine of growth. When retention plateau occurs, conduct a Pivot-or-Persevere review to realign your engine of growth.
+
+CHAPTER 9: BATCH
+Small batch production accelerates feedback and reduces defect risk. Continuous deployment allows modern engineering teams to release changes to production dozens of times per day.
+
+CHAPTER 10: GROW
+The three engines of growth: Sticky, Viral, and Paid. Focus on one primary engine at a time to achieve sustainable compounding momentum.
+
+CHAPTER 11: ADAPT
+Use the Five Whys methodology to uncover root human and systemic causes behind technical defects, and make proportional investments to eliminate repeat mistakes.
