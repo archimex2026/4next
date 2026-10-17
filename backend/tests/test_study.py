@@ -34,6 +34,56 @@ EN_TEXT = (
 
 
 class StudyServicesTests(unittest.TestCase):
+    def biology_pdf_source(self):
+        from app.services.demo_seeder import SAMPLES
+        sample = next(sample for sample in SAMPLES if sample[0] == "biologie")
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder)/"biology.pdf"
+            path.write_bytes(render_study_pdf(sample[1],"ro",[("Sursă",sample[4])]))
+            return sample,extract_document(path,"pdf")
+
+    def test_wrapped_biology_pdf_and_authored_source_keep_the_answer_in_offline_chat(self):
+        from app.services.study_ai import tokens
+        sample,document = self.biology_pdf_source()
+        questions = ("Ce substante folosesc plantele pentru fotosinteza?",
+                     "Ce substanțe folosesc plantele pentru fotosinteză?")
+        for pages in (document["pages"],[{"page":1,"text":sample[4]}]):
+            for question in questions:
+                with self.subTest(pdf=pages is document["pages"],question=question),\
+                    patch("app.services.study_ai.gemini_json",return_value=None):
+                    response = asyncio.run(answer_from_source(question,pages,"ro",sample[1]))
+                    self.assertEqual(response["mode"],"extractive")
+                    self.assertTrue(any({"dioxid","carbon","apa"} <= tokens(c["text"]) for c in response["citations"]),
+                        "the complete source answer must remain together despite visual PDF line wrapping")
+                    for citation in response["citations"]:
+                        self.assertTrue(any(page["page"] == citation["page"] and citation["text"] in page["text"] for page in pages))
+
+    def test_wrapped_biology_pdf_model_selection_receives_the_complete_exact_answer(self):
+        from app.services.study_ai import tokens
+        sample,document = self.biology_pdf_source()
+
+        async def select_answer(task,payload,language):
+            quote = next((item for item in payload["excerpts"] if {"dioxid","carbon","apa"} <= tokens(item["text"])),None)
+            self.assertIsNotNone(quote,"retrieval must send the complete answer to the model")
+            return {"answerable":True,"answer":"Invented answer with gold in the year 2200.","source_citations":[quote]}
+
+        for question in ("Ce substante folosesc plantele pentru fotosinteza?","Ce substanțe folosesc plantele pentru fotosinteză?"):
+            with self.subTest(question=question),patch("app.services.study_ai.gemini_json",side_effect=select_answer):
+                response = asyncio.run(answer_from_source(question,document["pages"],"ro",sample[1]))
+                self.assertEqual(response["mode"],"ai_grounded")
+                self.assertNotIn("2200",response["answer"])
+                self.assertTrue({"dioxid","carbon","apa"} <= tokens(response["answer"]))
+
+    def test_wrapped_biology_pdf_still_refuses_absent_facts_with_only_topic_overlap(self):
+        sample,document = self.biology_pdf_source()
+        for question in ("Ce medicamente tratează fotosinteza?","Cine a inventat fotosinteza în anul 2200?",
+                         "Cine a câștigat campionatul de fotbal?"):
+            with self.subTest(question=question),patch("app.services.study_ai.gemini_json",return_value=None) as provider:
+                response = asyncio.run(answer_from_source(question,document["pages"],"ro",sample[1]))
+            self.assertEqual(response["mode"],"insufficient_source")
+            self.assertEqual(response["citations"],[])
+            provider.assert_not_called()
+
     def test_language_detects_document_and_rejects_translation_override(self):
         self.assertEqual(resolve_language(RO_TEXT)["language"], "ro")
         self.assertEqual(resolve_language(EN_TEXT)["language"], "en")

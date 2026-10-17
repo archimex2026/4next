@@ -46,7 +46,9 @@ def extract_keywords(text, limit=14):
 
 def source_fragments(pages):
     for page in pages:
-        for sentence in re.split(r"(?<=[.!?])\s+|\n+", page.get("text", "")):
+        # PDF extraction includes visual line wraps inside sentences. Keep those exact
+        # characters in citations; only sentence ends and blank lines separate ideas.
+        for sentence in re.split(r"(?<=[.!?])\s+|\n\s*\n", page.get("text", "")):
             sentence = sentence.strip()
             if len(sentence) >= 25:
                 for start in range(0, len(sentence), 1500):
@@ -167,6 +169,8 @@ async def answer_from_source(message, pages, language, title, previous_question=
             return {"answer": answer, "citations": [{**c, "source_title": title} for c in citations], "mode": "ai_grounded", "generation_detail": "ai_selected_source_extracts", "related_concepts": extract_keywords(" ".join(c["text"] for c in citations), 4)}
         except (ValueError, KeyError, TypeError):
             logger.warning("Rejected ungrounded or wrong-language study answer")
-    citations = [{**c, "source_title": title} for c in excerpts[:3]]
+    # Match the same bounded evidence supplied to the model; a lower-scoring fifth
+    # excerpt may contain the actual answer rather than only the topic definition.
+    citations = [{**c, "source_title": title} for c in excerpts]
     answer = labels["found"] + "\n\n" + "\n\n".join(f'“{item["text"]}” [{item["page"]}]' for item in citations)
     return {"answer": answer, "citations": citations, "mode": "extractive", "related_concepts": extract_keywords(" ".join(c["text"] for c in citations), 4)}
