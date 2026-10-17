@@ -38,7 +38,9 @@ Serverul AI propriu gratuit, cheile personale ale furnizorilor, camerele cu prof
 
 Demo-ul trebuie să arate un material permis pentru utilizare, alegerea conceptelor, o lecție, un răspuns cu citat și un quiz. Verificăm separat refuzul unei întrebări absente și izolarea materialului privat. Nu există încă rezultate măsurate privind eficiența învățării; un pilot trebuie să măsoare timpul până la recapitulare și înțelegerea materiei.
 
-Frontendul poate fi găzduit pe Vercel; API-ul, SQLite și fișierele necesită persistență și o configurație compatibilă cu autentificarea prin cookie. Linkul public se comunică după testarea fluxului complet. Cheia Gemini rămâne secret de backend și nu se introduce în frontend, documente sau prezentare.
+Găzduirea se mută integral pe Render, într-un singur Web Service Docker: Next.js pe portul public și FastAPI pe loopback în același container, cu cereri pe aceeași origine. Echipa a ales Render Free pentru demo: SQLite, documentele și media sunt temporare sub `/var/data` și se pot pierde la restart, redeploy sau oprirea automată. Serviciul se oprește după 15 minute fără trafic și repornește la acces, în aproximativ un minut. Migrarea nu este declarată live până la verificarea URL-ului și autentificării. Testarea redeployului va confirma resetarea așteptată, fără promisiune de persistență.
+
+Demo-ul Vercel anterior depindea de un API pe PC și a produs erori 502 după sleep; nu mai este adresa oficială. Cheia Gemini rămâne secret de backend și nu se introduce în frontend, documente sau prezentare. Pașii curenți sunt în [deployment_demo.md](deployment_demo.md).
 
 Templateul PowerPoint a fost inspectat, fără modificare. Structura sa și cronometrarea sunt în [prezentare_template.md](prezentare_template.md). Prezentarea Canva se realizează ulterior, cu maximum zece pagini totale la depunere, păstrând declararea bazei preexistente Book2Sound/Book2Course și clarificarea eligibilității cu organizatorii.
 

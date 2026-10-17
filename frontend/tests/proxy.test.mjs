@@ -3,8 +3,10 @@ import { afterEach, test } from 'node:test';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { runInNewContext } from 'node:vm';
+import { Readable } from 'node:stream';
 import ts from 'typescript';
 import { NextRequest } from 'next/server.js';
+import { getCloneableBody } from 'next/dist/server/body-streams.js';
 
 // Exercise the real source with Next's request/response objects, without a build or extra runner.
 const compiled = ts.transpileModule(readFileSync(new URL('../src/proxy.ts', import.meta.url), 'utf8'), {
@@ -56,4 +58,34 @@ test('without an upstream origin the proxy leaves local development routing alon
   assert.equal(response.headers.get('x-middleware-next'), '1');
   assert.equal(response.headers.has('x-middleware-rewrite'), false);
   assert.equal(response.headers.has('x-middleware-request-x-4next-proxy-key'), false);
+});
+
+test('configured Next proxy buffer preserves a maximum upload and bounds oversized bodies', async () => {
+  const compiledConfig = ts.transpileModule(readFileSync(new URL('../next.config.ts', import.meta.url), 'utf8'), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+  }).outputText;
+  const configExports = {};
+  runInNewContext(compiledConfig, { exports: configExports, process, URL });
+  const limit = configExports.default.experimental.proxyClientMaxBodySize;
+  const size = 15 * 1024 * 1024 + 4096; // Full file allowance plus real multipart overhead.
+  async function received(total) {
+    const input = Readable.from((function* () {
+      for (let remaining = total; remaining > 0; remaining -= 64 * 1024) {
+        yield Buffer.alloc(Math.min(remaining, 64 * 1024));
+      }
+    })());
+    let bytes = 0;
+    for await (const chunk of getCloneableBody(input, limit).cloneBodyStream()) bytes += chunk.length;
+    return bytes;
+  }
+  assert.equal(await received(size), size, 'the documented 15 MiB upload must not be truncated');
+  const originalWarn = console.warn;
+  let warned = false;
+  try {
+    console.warn = () => { warned = true; };
+    assert.equal(await received(16 * 1024 * 1024 + 1), 16 * 1024 * 1024);
+    assert.equal(warned, true);
+  } finally {
+    console.warn = originalWarn;
+  }
 });

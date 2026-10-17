@@ -1,0 +1,31 @@
+# One public Render web service. API traffic stays inside this container.
+FROM node:22-bookworm-slim AS frontend-build
+WORKDIR /build/frontend
+ENV NEXT_TELEMETRY_DISABLED=1
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci
+COPY frontend/ ./
+# The free demo deliberately uses ephemeral server storage; this is public UI metadata.
+ARG NEXT_PUBLIC_STORAGE_MODE=ephemeral
+ARG NEXT_PUBLIC_UPLOAD_LIMIT_MB=15
+ENV NODE_ENV=production NEXT_PUBLIC_API_URL="" NEXT_PUBLIC_STORAGE_MODE=${NEXT_PUBLIC_STORAGE_MODE} NEXT_PUBLIC_UPLOAD_LIMIT_MB=${NEXT_PUBLIC_UPLOAD_LIMIT_MB} BACKEND_ORIGIN=http://127.0.0.1:8000
+RUN npm run build
+
+FROM python:3.12-slim-bookworm AS runtime
+ENV PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1 NODE_ENV=production NEXT_TELEMETRY_DISABLED=1
+RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg fonts-dejavu-core libstdc++6 \
+    && rm -rf /var/lib/apt/lists/*
+COPY --from=frontend-build /usr/local/bin/node /usr/local/bin/node
+WORKDIR /app/backend
+COPY backend/requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
+COPY backend/app/ ./app/
+COPY --from=frontend-build /build/frontend/.next/standalone/ /app/frontend/
+COPY --from=frontend-build /build/frontend/.next/static/ /app/frontend/.next/static/
+COPY --from=frontend-build /build/frontend/public/ /app/frontend/public/
+COPY scripts/run_render.py /app/scripts/run_render.py
+RUN groupadd --system four_next && useradd --system --gid four_next --home-dir /app four_next \
+    && mkdir -p /var/data && chown -R four_next:four_next /app /var/data
+USER four_next
+EXPOSE 10000
+CMD ["python", "/app/scripts/run_render.py"]

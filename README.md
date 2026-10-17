@@ -2,7 +2,7 @@
 
 4Next este un spațiu de studiu pentru elevi și studenți: adaugi materialele tale, alegi conceptele, timpul și profunzimea, apoi studiezi prin lecții, flashcarduri, quizuri și întrebări ancorate în sursă. Pregătirea pentru examene este direcția produsului.
 
-Versiunea curentă este un prototip funcțional, cu infrastructură pentru un demo temporar pe Vercel. Lucrăm pe branch-ul **flavius**; funcțiile pentru finanțare sunt prezentate separat în pagina „Ce urmează”.
+Versiunea curentă este un prototip funcțional. **Migrarea întregii aplicații pe Render este în curs**: interfața și API-ul vor rula împreună, independent de calculatorul echipei. Adresa Render se anunță după deployment și verificarea fluxului complet. Demo-ul Vercel anterior este retras din rolul de adresă oficială. Lucrările se integrează din branch-ul **flavius** în **main**, după verificare; funcțiile pentru finanțare sunt prezentate separat în pagina „Ce urmează”.
 
 ## Funcții disponibile
 
@@ -32,7 +32,7 @@ Documentele de peste 100.000 de caractere folosesc extragerea locală pentru con
 
 ## Limite și funcții viitoare
 
-Upload: maximum **15 MB local** (**4 MB în demo-ul prin proxy Vercel**), **500 de pagini PDF**, **1.000.000 de caractere**; arhivele sunt limitate și după decomprimare. PDF-urile scanate necesită OCR înainte de încărcare. Fișierele DOC vechi trebuie convertite în DOCX. Limbile nesuportate sunt respinse explicit, fără traducere automată.
+Upload: maximum **15 MB în backend** (limita interfeței și a proxyului se configurează pentru deployment), **500 de pagini PDF**, **1.000.000 de caractere**; arhivele sunt limitate și după decomprimare. PDF-urile scanate necesită OCR înainte de încărcare. Fișierele DOC vechi trebuie convertite în DOCX. Limbile nesuportate sunt respinse explicit, fără traducere automată.
 
 Limite pe cont: 5 generări de materiale/minut și 30/zi; audio 3/minut și 20/zi; inspecție 10/minut; chat 15/minut. Maximum trei generări simultane pe proces și una pentru același cont. Cotele pentru upload/audio sunt păstrate în SQLite; concurența și limita chatului sunt locale procesului.
 
@@ -77,15 +77,21 @@ node --test tests/proxy.test.mjs
 npm run build
 ```
 
-Ultima verificare locală: **68/68 teste backend**, **90% acoperire pentru codul activ**, **3/3 teste proxy frontend**, lint fără erori/avertismente, TypeScript și build reușite.
+Ultima verificare locală a sursei pregătite pentru Render: **78/78 teste backend**, **90% acoperire pentru codul activ**, **4/4 teste proxy frontend**, lint fără erori/avertismente, TypeScript și build reușite.
 
 Sunt testate autentificarea și expirarea sesiunilor, izolarea între conturi, publicarea/ratingurile, revocarea accesului în clase, limba/citările, atacurile prin documente, uploadurile, PDF-ul Unicode și limitele de utilizare. Testele folosesc baze temporare și modele simulate, fără servicii plătite. Acoperirea configurată exclude generatoarele video/diagrame moștenite care nu sunt conectate la fluxul curent. GitHub Actions rulează verificările pentru push pe `flavius`/`main` și pentru PR-uri.
 
 ## Stocare și lansare
 
-SQLite, uploadurile și media sunt locale și excluse din Git. Instanța demo folosește o bază și directoare separate, fără copierea datelor locale personale. Docker Compose definește stocare persistentă pentru baza de date și directoarele media/upload; configurația nu a fost validată într-un deployment public.
+Ținta curentă este **un singur Web Service Docker pe Render**. Next.js primește traficul public pe portul `PORT`; proxyul intern trimite `/api` și `/media` către FastAPI, disponibil numai în container la `127.0.0.1:8000`. Browserul păstrează aceeași origine pentru interfață și cookie, fără tunel către PC și fără un backend public separat.
 
-Proiectul Vercel este configurat pentru alternativa `4next-study.vercel.app`; `4next.vercel.app` este ocupat. Proxy-ul păstrează API-ul și cookie-urile pe aceeași origine. Backendul demo este izolat, cu HTTPS prin tunel și autentificare secretă între servere; baza rămâne pe acest PC. Demo-ul depinde de PC, backend și tunel pornite. Publicarea și testarea URL-ului sunt în curs. Instrucțiuni de repornire, secrete, limite și migrare la găzduire persistentă: [deployment_demo.md](docs/deployment_demo.md). Integrarea automată Vercel–GitHub încă necesită conectarea repo-ului; push-ul singur nu publică site-ul. Textele juridice sunt drafturi pentru prototip.
+Echipa a ales explicit **Render Free pentru demo, cu date temporare**. SQLite, uploadurile și media se scriu sub `/var/data`, fără disc persistent: conturile și fișierele se pot pierde la restart, redeploy sau oprirea automată. După 15 minute fără trafic, serviciul Free se oprește, iar următorul acces îl reactivează în aproximativ un minut. Contul demo se creează în interfață și poate necesita recreare după reset. Nu este activat niciun plan cu plată. [Render Free](https://render.com/docs/free)
+
+Pentru păstrarea datelor ulterior, aceeași arhitectură poate folosi un serviciu cu disc persistent, după aprobarea costului și testarea backupului. [Render Persistent Disks](https://render.com/docs/disks)
+
+Configurația este în [render.yaml](render.yaml), [Dockerfile.render](Dockerfile.render) și [scripts/run_render.py](scripts/run_render.py). Blueprintul Free Frankfurt folosește `main`, fără disc și cu publicare manuală. Schema oficială a fost validată local; noul job CI de build/test Docker și verificarea cloud sunt în așteptare; nu este încă declarat un URL Render funcțional sau un deployment Render reușit. Cheia Gemini rămâne în variabilele secrete ale serverului. Valorile locale `.env`, SQLite, parolele și fișierele utilizatorilor nu intră în Git sau în imaginea Docker. Textele juridice rămân drafturi pentru prototip.
+
+Planul, pașii din Dashboard, configurația de mediu și verificările înainte de lansare sunt în [deployment_demo.md](docs/deployment_demo.md). Prototipul Vercel cu API pe PC a trecut anterior verificări publice, apoi echipa a raportat 502 după intrarea PC-ului în sleep. Acele verificări sunt istoric, nu dovadă de disponibilitate curentă. Adresa Vercel nu mai este ținta de lansare.
 
 ## Documente de lucru
 

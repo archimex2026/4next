@@ -1,0 +1,36 @@
+# Deny everything except the sources consumed by Dockerfile.render.
+**
+!Dockerfile.render
+!.dockerignore
+!frontend/
+!frontend/**
+!backend/
+!backend/requirements.txt
+!backend/app/
+!backend/app/**
+!scripts/
+!scripts/run_render.py
+
+# Exclusions remain last so no local credentials or generated data enter any layer.
+**/.env
+**/.env.*
+**/.git
+**/.github
+**/.codex
+**/.agents
+**/.local*
+**/.vercel
+**/.venv
+**/node_modules
+**/.next
+**/__pycache__
+**/*.pyc
+**/*.db
+**/*.db-*
+**/*.sqlite*
+**/*.pem
+**/*.key
+**/uploads
+**/media
+**/AGENTS.md
+**/SKILL.md

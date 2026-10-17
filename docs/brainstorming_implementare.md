@@ -73,8 +73,11 @@ Lucrările pornesc de pe branch-ul `flavius`; merge-ul pe `main` și publicarea 
 - [x] Audio la cerere RO/EN: serviciul indisponibil produce eroare, fără fișiere silențioase prezentate ca rezultat.
 - [x] Frontend: lint, TypeScript și build de producție.
 - [x] GitHub Actions pentru backend/frontend pe `flavius`, `main` și PR-uri.
-- [ ] Gemini și TTS cu servicii reale/chei valide: nu sunt validate end-to-end; testele simulează furnizorii, iar rularea locală a folosit extragerea locală.
-- [ ] Deployment public complet, verificare email/recuperare parolă, proceduri juridice/retenție și infrastructură multi-worker.
+- [x] Gemini real: cheie verificată și un upload text în modul ai_grounded. Un apel public ulterior a primit eroare temporară de furnizor și a folosit corect extragerea locală.
+- [ ] TTS cu servicii reale: integrarea premium se coordonează cu Ionuț; nu este declarată validată end-to-end.
+- [x] Demo Vercel anterior verificat, cu backend pe PC; această arhitectură a fost abandonată după erori 502 cauzate de sleep.
+- [ ] Migrare integrală Render Free, independentă de PC, cu resetarea datelor acceptată de echipă.
+- [ ] Găzduire permanentă, verificare email/recuperare parolă, proceduri juridice finale și infrastructură multi-worker.
 - [ ] Funcțiile F01–F06 și maparea la programa oficială, după cercetare/finanțare.
 - [ ] Prezentarea Canva și confirmarea eligibilității bazei preexistente conform regulamentului.
 
@@ -82,7 +85,7 @@ Lucrările pornesc de pe branch-ul `flavius`; merge-ul pe `main` și publicarea 
 
 **Bază verificată anterior: 52/52 teste backend trecute**, lint fără erori/avertismente, TypeScript și build de producție reușite.
 
-Suita backend folosește baze temporare și verifică accesul între conturi, expirarea sesiunilor, ratingurile, revocarea accesului, limba, citările reale și false, prompt injection, numele de fișiere, arhivele, highlights, PDF-ul și limitele de utilizare. Acoperirea măsurată pentru codul activ este 89%; configurația exclude explicit generatoarele video/diagrame moștenite care nu sunt apelate de fluxul curent.
+Suita backend folosește baze temporare și verifică accesul între conturi, expirarea sesiunilor, ratingurile, revocarea accesului, limba, citările reale și false, prompt injection, numele de fișiere, arhivele, highlights, PDF-ul și limitele de utilizare. Acoperirea anterioară pentru codul activ era 89%; configurația exclude explicit generatoarele video/diagrame moștenite care nu sunt apelate de fluxul curent.
 
 În browser au fost exercitate: creare cont, preferințe, introducerea textului, analiză RO, selectare concept, creare curs privat, notițe/progres, flashcarduri, quiz cu punctaj, chat RO/EN cu citări, refuzul unei întrebări absente, salvare highlight, descărcare PDF, creare clasă/partajare și rating public. Verificare vizuală desktop 1440 px și mobil 390 px, fără overflow orizontal în clase și spațiul de studiu; fără erori relevante în consola acestor fluxuri.
 
@@ -92,7 +95,7 @@ Selectorul de fișiere nu a putut fi automatizat deoarece pluginul Chrome a refu
 
 Chatul strict oferă citate verificate și îndrumare pedagogică, nu o explicație liberă garantată factual de un model. O citare corectă nu dovedește adevărul unei parafraze arbitrare; de aceea acel text al modelului nu este afișat. La un buget scurt de studiu se selectează fragmente din sursă, fără a afirma că întreaga carte este acoperită.
 
-Cotele upload/audio sunt comune instanțelor care folosesc aceeași bază SQLite. Concurența și limita chatului rămân per proces; sunt necesare o coadă comună și limite la proxy pentru extindere. SQLite și directoarele locale trebuie înlocuite sau găzduite persistent înainte de Vercel/publicare.
+Cotele upload/audio sunt comune instanțelor care folosesc aceeași bază SQLite. Concurența și limita chatului rămân per proces; sunt necesare o coadă comună și limite la proxy pentru extindere. Demo-ul Vercel anterior păstra SQLite și fișierele pe PC într-o instanță separată. Noua țintă Render Free folosește `/var/data` temporar, fără disc; resetarea conturilor și fișierelor a fost acceptată explicit pentru demo.
 
 Referințe tehnice primare folosite la verificare: [FastAPI CORS](https://fastapi.tiangolo.com/tutorial/cors/), [OWASP Session Management](https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html), [OWASP LLM Prompt Injection Prevention](https://cheatsheetseries.owasp.org/cheatsheets/LLM_Prompt_Injection_Prevention_Cheat_Sheet.html).
 
@@ -105,14 +108,40 @@ Runda din 17 octombrie adaugă cerințele din `H:\4Next\citeste_asta.txt`. Fiși
 - [x] Compararea tuturor celor 30 de puncte ale planului în [auditul de backend](backend_architecture_audit.md), cu diferențele și alternativele explicate. Auditul nu afirmă implementarea integrală a planului enterprise.
 - [x] Citirea tuturor paginilor și randarea templateului PPTX, fără modificare; structură în [prezentare_template.md](prezentare_template.md).
 - [x] Actualizarea documentului Word de proiect; validare structurală și verificare vizuală a tuturor celor șase pagini după export PDF printr-o instanță Microsoft Word proprie, ascunsă și închisă la final. PDF/PNG sunt doar intermediari locali de QA.
-- [ ] Backend persistent, secret Gemini pe server, configurație HTTPS/cookie/CORS și test public complet înainte de a declara lansarea funcțională.
+- [x] Istoric: backend demo pe PC, secret Gemini pe server și verificări HTTPS/cookie/CORS; a fost înlocuit ca direcție de găzduire după incidentul 502.
+- [ ] Migrarea interfeței și backendului într-un singur serviciu Render; verificare independentă de PC și verificarea resetării așteptate a datelor după restart/redeploy.
 - [ ] Confirmarea diferențelor de pe `main` și `flavius`, verificări finale, apoi merge fără suprascrierea muncii echipei.
-- [ ] `4next.vercel.app` sau alternativă legată de studiu numai după verificarea disponibilității și a deploymentului real.
+- [x] Istoric: `4next.vercel.app` era ocupat și s-a folosit `4next-study.vercel.app`. Acest URL nu mai este adresa oficială.
+- [ ] Confirmarea noii adrese Render numai după deployment verificat.
 
 Ionuț lucrează separat la audio/video. Pipelineul premium Gemini TTS, normalizarea audio și modul video nu se declară integrate înainte de review și testare. Un coleg explorează ILOVEAPI pentru conversie PDF; exportul curent funcționează local cu fpdf2, fără cheie de conversie. Nu suprapunem aceste direcții prin înlocuiri speculative.
 
-Cele 52 de teste și 89% acoperire documentate mai sus sunt baseline-ul rundei anterioare. Rezultatele noilor teste și starea publicării se actualizează după execuție; nu sunt presupuse reușite din existența codului.
+Cele 52 de teste și 89% acoperire de mai sus descriu runda anterioară. Rezultatele actuale sunt cele din README și din evidența acestei runde.
 
-Actualizare în cursul rundei: cheia Gemini a răspuns unui apel JSON real. `4next.vercel.app` este indisponibil; alternativa rezervată este `4next-study.vercel.app`. Demo-ul pregătit are backend izolat pe portul 18000, bază/fișiere separate și gateway protejat. Publicarea completă rămâne în verificare; rezervarea adresei nu confirmă funcționarea fluxului public.
+Demo anterior, retras din rolul oficial: https://4next-study.vercel.app. `4next.vercel.app` este ocupat. Instanța are backend izolat pe portul 18000, bază/fișiere separate și gateway protejat. Autentificarea HTTPS și exporturile PDF au trecut verificarea publică. Cheia Gemini a răspuns real; erorile temporare ale furnizorului folosesc extragerea locală etichetată.
 
-Verificare nouă din această rundă: **68/68 teste backend, 90% acoperire pentru codul activ, 3/3 teste proxy frontend**, lint, TypeScript și build de producție reușite. Gateway-ul izolat respinge accesul direct fără secret, iar răspunsul Next real nu expune antetele interne. Generarea reală Gemini a produs un material `ai_grounded`. Detalii de deployment în [deployment_demo.md](deployment_demo.md).
+Verificare nouă din această rundă: **78/78 teste backend, 90% acoperire pentru codul activ, 4/4 teste proxy frontend**, lint, TypeScript și build de producție reușite. Gateway-ul izolat respinge accesul direct fără secret, iar răspunsul Next real nu expune antetele interne. Generarea reală Gemini a produs un material `ai_grounded`. Detalii de deployment în [deployment_demo.md](deployment_demo.md).
+
+Corecție găsită în testul public: rândurile vizuale ale PDF-ului fragmentau propozițiile și puteau produce refuzuri false în chat. Se păstrează acum rândurile simple în citatele exacte, iar răspunsul extractiv include același context limitat la cinci fragmente ca modelul. Trei teste noi verifică circuitul PDF real, întrebări cu/fără diacritice și păstrarea refuzurilor pentru fapte absente.
+
+Verificarea publică anterioară pe Vercel a trecut: login HTTPS, upload PDF public educațional, toate exporturile, izolare privat, chat/citate/refuz, clasă/partajare, coș/restaurare privată și protecție cross-site. Ștergerea definitivă a materialelor sintetice a fost verificată și în browser. Backendul și directoarele sunt separate de datele locale de dezvoltare.
+
+## Migrarea Render după actualizarea citeste asta
+
+Conversația adăugată de Flavius confirmă că echipa a primit 502 după ce PC-ul a intrat în sleep. Decizia actuală abandonează găzduirea Vercel cu tunel local și mută interfața și API-ul pe Render. Verificările istorice rămân utile pentru funcții, dar nu dovedesc disponibilitatea noii găzduiri.
+
+- [x] Sursă pregătită pentru un Web Service Docker: Next.js public pe `PORT`, FastAPI intern pe `127.0.0.1:8000`; verificarea imaginii este separată.
+- [ ] Proxy `/api` și `/media` pe aceeași origine; cookie Secure/HttpOnly și originea exactă permisă.
+- [ ] Datele demo temporare sub `/var/data`: SQLite, uploaduri și media; mesaj vizibil despre resetare.
+- [x] `render.yaml`, Dockerfile.render și supervisor în repo, fără chei/baze/date personale în context; schemă oficială validată local.
+- [x] Teste locale pentru supervisor, health check și izolarea variabilelor; lint, TypeScript și build de producție trecute.
+- [ ] Noul job CI de build Docker și smoke test real al imaginii, apoi verificarea logurilor cloud fără secrete.
+- [x] Cont Render autentificat de utilizator.
+- [ ] Repository accesibil și deployment creat în Dashboard.
+- [x] Alegere explicită: Render Free, fără disc, cu resetarea datelor acceptată; niciun plan cu plată activat.
+- [ ] Secret Gemini introdus în mediul serverului, fără prefix `NEXT_PUBLIC_`.
+- [ ] URL Render, login și upload PDF verificate; chat cu citare/refuz, toate exporturile, grup și coș restaurate corect.
+- [ ] Funcționare fără backendul PC-ului; la restart/redeploy se acceptă resetarea datelor, iar contul poate fi recreat fără parolă implicită în cod.
+- [ ] Rezultatele și URL-ul final actualizate în README, aceste documente și Word; Canva rămâne ulterior.
+
+Pașii concreți de configurare și criteriile de acceptare sunt în [deployment_demo.md](deployment_demo.md). Sursa pregătită pentru Render a trecut 78/78 teste backend, 90% cod activ și 4/4 teste proxy, plus lint, TypeScript și build. Testarea imaginii Docker și verificările live rămân distincte.

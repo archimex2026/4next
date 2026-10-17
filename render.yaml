@@ -1,0 +1,27 @@
+# Free demo: /var/data is ephemeral. No paid compute or persistent disk is provisioned.
+services:
+  - type: web
+    name: 4next-study
+    runtime: docker
+    plan: free
+    region: frankfurt
+    repo: https://github.com/archimex2026/4next
+    branch: main
+    dockerfilePath: ./Dockerfile.render
+    dockerContext: .
+    # Public-repository deployment; deploy manually after CI until Git integration is configured.
+    autoDeployTrigger: off
+    healthCheckPath: /api/health
+    maxShutdownDelaySeconds: 30
+    envVars:
+      - key: DATA_DIR
+        value: /var/data
+      - key: STORAGE_MODE
+        value: ephemeral
+      - key: NEXT_PUBLIC_STORAGE_MODE
+        value: ephemeral
+      - key: NEXT_PUBLIC_UPLOAD_LIMIT_MB
+        value: "15"
+      - key: GEMINI_MODEL
+        value: gemini-flash-latest
+      # Optional GEMINI_API_KEY belongs only in Render's Environment settings.

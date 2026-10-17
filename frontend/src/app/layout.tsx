@@ -15,6 +15,7 @@ export default function RootLayout({ children }: Readonly<{
       <body>
         <a href="#main-content" className="skip-link">Sari la conținut</a>
         <AuthProvider><Navbar />
+        {process.env.NEXT_PUBLIC_STORAGE_MODE === 'ephemeral' && <aside className="demo-storage-notice" aria-label="Datele demo-ului gratuit"><p><strong>Demo gratuit</strong> · Conturile și materialele se pot reseta la repornirea serverului. Păstrează o copie a documentelor. <Link href="/privacy">Despre datele tale</Link></p></aside>}
         <main id="main-content">{children}</main>
         <footer className="study-footer">
           <span><strong>4next.</strong> Un loc pentru următoarea ta idee.</span>

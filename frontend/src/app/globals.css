@@ -2187,6 +2187,23 @@ input::placeholder,textarea::placeholder {
   display: flex;
   flex-direction: column;
 }
+.demo-storage-notice {
+  padding: 11px 24px;
+  background: #f4ead8;
+  border-bottom: 1px solid #e2d7c2;
+  color: #63513a;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.demo-storage-notice p {
+  max-width: 1240px;
+  margin: 0 auto;
+}
+.demo-storage-notice a {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  white-space: nowrap;
+}
 .library-course>.course-card {
   flex: 1;
 }

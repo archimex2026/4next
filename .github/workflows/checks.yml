@@ -48,3 +48,20 @@ jobs:
         working-directory: frontend
         env:
           NEXT_PUBLIC_API_URL: http://localhost:8000
+  render-image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -f Dockerfile.render -t 4next-render-check .
+      - name: Start the combined free-demo image
+        run: >-
+          docker run -d --name 4next-render-check
+          -p 127.0.0.1:18080:10000
+          -e RENDER_EXTERNAL_URL=https://4next-ci.onrender.com
+          -e STORAGE_MODE=ephemeral
+          4next-render-check
+      - run: python scripts/smoke_render.py http://127.0.0.1:18080
+      - if: always()
+        run: docker logs 4next-render-check
+      - if: always()
+        run: docker rm -f 4next-render-check

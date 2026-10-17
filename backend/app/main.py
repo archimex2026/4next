@@ -9,7 +9,7 @@ from app.database import get_db_connection, init_db
 from app.security import check_course_access, optional_user
 from app.request_limits import RequestBodyLimitsMiddleware
 from app.services.demo_seeder import seed_demo_data
-from app.routers import auth, books, community, courses, lessons, flashcards, quizzes, demo, export, groups, study, trash
+from app.routers import auth, books, community, courses, lessons, flashcards, quizzes, demo, export, groups, study, trash, health
 from app.services.trash import purge_expired_materials
 
 
@@ -67,7 +67,7 @@ def protected_media(media_path: str,user: dict | None=Depends(optional_user)):
 
 
 for router in (auth.router,community.router,books.router,courses.router,lessons.router,flashcards.router,
-    quizzes.router,demo.router,export.router,groups.router,study.router,trash.router):
+    quizzes.router,demo.router,export.router,groups.router,study.router,trash.router,health.router):
     app.include_router(router)
 
 

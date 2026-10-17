@@ -1,54 +1,96 @@
-# Lansarea demo 4Next
+# Lansarea 4Next pe Render
 
-## Configurația aleasă
+## Decizia actuală și starea verificării
 
-Interfața Next.js se publică pe Vercel, în proiectul `4next` din echipa `mflaviusgabriel`. `4next.vercel.app` aparține altui proiect; alternativa rezervată și verificată este `4next-study.vercel.app`.
+Echipa a abandonat demo-ul Vercel care trimitea cererile către un backend de pe PC: după sleep, colegii au primit 502. Noua țintă găzduiește interfața și API-ul împreună pe **Render Free**, fără dependență de PC sau tunel. Utilizatorul s-a autentificat în Render și a ales explicit varianta gratuită, acceptând resetarea datelor. Nu activăm un plan cu plată.
 
-API-ul FastAPI rulează pe acest PC, pe `127.0.0.1:18000`, prin `app.demo_gateway:create_demo_app --factory`. Un Cloudflare Quick Tunnel temporar îl conectează la Vercel. Instanța demo folosește exclusiv `.local-demo/data`: SQLite, uploaduri și media separate. Nu copiază conturile, sesiunile sau documentele din instanța de dezvoltare de pe portul 8000. Sunt adăugate două exemple educaționale publice originale.
+**Deploymentul Render și URL-ul final sunt încă în verificare.** Nu prezentăm o adresă anticipată ca fiind funcțională. Sursa pregătită pentru migrare are 78/78 teste backend, 90% acoperire pentru codul activ, 4/4 teste proxy frontend, plus lint, TypeScript și build. Verificările noi se adaugă după execuție.
 
-Gateway-ul verifică o cheie aleatoare de server înainte să citească cererea sau să apeleze API-ul. Accesul direct la tunel fără cheie primește 404, inclusiv pentru catalog, documentație și media. Verificarea căilor rezolvate și a legăturilor către baza locală previne reutilizarea accidentală a stocării de dezvoltare.
+## Un serviciu pentru interfață și API
 
-Proxy-ul Next.js trimite cheia exclusiv în cererea către backend și înlocuiește orice valoare furnizată de client. Browserul folosește `/api` și `/media` pe aceeași origine cu site-ul. Cookie-ul de sesiune rămâne HttpOnly, Secure și SameSite=Lax. Originea publică este permisă explicit în backend; mutațiile cross-site rămân respinse. Nu activa loguri `DEBUG=next:*` care ar putea include antete interne.
+Sursele pregătite sunt `render.yaml`, `Dockerfile.render` și `scripts/run_render.py`. Blueprintul definește `4next-study`, Docker Free în Frankfurt, branch `main`, fără disc și fără publicare automată (`autoDeployTrigger: off`). Web Service-ul Docker pornește două procese în același container:
 
-## Variabile de mediu
+- Next.js ascultă pe `0.0.0.0:$PORT`, portul public atribuit de Render.
+- FastAPI ascultă exclusiv pe `127.0.0.1:8000`, accesibil doar din container.
+- Proxyul Next.js trimite `/api` și `/media` către API-ul intern. Browserul folosește aceeași origine pentru pagină, cookie și cereri.
+- Supervisorul oprește containerul dacă unul dintre procese cade și trimite oprirea ambelor procese. Endpointul `/api/health` verifică API-ul și o cerere SQLite limitată, fără apeluri către Gemini.
 
-| Loc | Variabilă | Rol |
-| --- | --- | --- |
-| Vercel Production | `NEXT_PUBLIC_API_URL` gol | Cereri din browser pe aceeași origine. Nu conține secrete. |
-| Vercel Production | `BACKEND_ORIGIN` | Adresa HTTPS a tunelului curent; numai originea, fără cale. |
-| Vercel Production Secret | `DEMO_PROXY_TOKEN` | Cheia de acces server către gateway. Niciodată prefix `NEXT_PUBLIC_`. |
-| Frontend opțional | `NEXT_PUBLIC_UPLOAD_LIMIT_MB` | Implicit 4 MB în producție pentru compatibilitate cu proxy-ul; local 15 MB. |
-| Backend | `GEMINI_API_KEY`, `GEMINI_MODEL` | Citite din mediul procesului sau din fișierul local ignorat `backend/.env`. Cheia nu este trimisă către Vercel/frontend. |
-| Backend demo | `DATA_DIR`, `DATABASE_PATH` | Setate explicit de script în `.local-demo/data`. |
-| Backend demo | `DEMO_PROXY_TOKEN_FILE` | Fișierul local ignorat `.local-demo/proxy-token.txt`; aceeași cheie ca în Vercel. |
-| Backend demo | `COOKIE_SECURE`, `ALLOWED_ORIGINS` | HTTPS și originea exactă a site-ului; setate de script. |
+Astfel, oprirea calculatorului echipei nu mai oprește aplicația găzduită. Nu se folosesc `localhost:8000` în codul trimis browserului, Cloudflare Quick Tunnel sau vechiul gateway demo pentru această lansare.
 
-Fișierele `.env.example` sunt șabloane fără secrete. Variabilele procesului au prioritate în backend; schimbarea cheii presupune repornirea backendului. Variabilele `NEXT_PUBLIC_*` se includ în buildul frontend și necesită rebuild. Cheia Gemini existentă a răspuns unui apel JSON real; fluxul de upload a produs și un curs în modul `ai_grounded`. Dacă furnizorul eșuează, extragerea locală rămâne etichetată explicit.
+## Datele din demo sunt temporare
 
-## Pornire și repornire
+SQLite, uploadurile și media se configurează sub `/var/data`, **fără disc montat** pe Free. Conturile, sesiunile, documentele și progresul se pot pierde la restart, redeploy sau oprirea automată a serviciului. Directorul `/var/data` singur nu asigură persistența.
 
-Din rădăcina repo-ului, după instalarea dependențelor:
+Render Free oprește serviciul după 15 minute fără trafic; primul acces ulterior îl reactivează în aproximativ un minut. Aceste limite sunt descrise în [documentația Render Free](https://render.com/docs/free). Aplicația trebuie să afișeze un mesaj clar despre datele temporare. Contul demo se înregistrează manual și poate necesita recreare după resetare; nu există parolă implicită sau cheie de test publicată în Git.
 
-```powershell
-.\scripts\start-demo-backend.ps1
-```
+Pentru păstrarea datelor ulterior, putem atașa un disc unui serviciu cu plată sau migra datele și fișierele în servicii externe. Această etapă necesită buget aprobat și verificarea backupului. Nu face parte din lansarea gratuită aleasă. [Render Persistent Disks](https://render.com/docs/disks)
 
-În alt terminal, clientul oficial descărcat pentru demo:
+## Configurația de mediu
 
-```powershell
-H:\4Next\tools\cloudflared.exe tunnel --no-autoupdate --url http://127.0.0.1:18000 --protocol http2
-```
+| Variabilă | Unde și de ce |
+| --- | --- |
+| `PORT` | Este furnizat de Render; Next.js ascultă public pe acest port. Nu este portul API-ului intern. |
+| `BACKEND_ORIGIN` | Supervisorul o setează numai pentru serverul Next.js la `http://127.0.0.1:8000`. Nu se configurează către PC. |
+| `NEXT_PUBLIC_API_URL` | Gol în Dockerfile la build: browserul cere `/api` și `/media` pe aceeași origine. Nu conține secrete. |
+| `NEXT_PUBLIC_STORAGE_MODE` | Build argument implicit `ephemeral`; afișează mesajul despre datele temporare. Nu reprezintă un secret. |
+| `DATA_DIR` | `/var/data`, rădăcina temporară pentru uploaduri și media în demo-ul Free. |
+| `STORAGE_MODE` | `ephemeral`, descrie modul de stocare al demo-ului; nu activează persistență. |
+| `DATABASE_PATH` | `/var/data/book2course.db`, baza temporară de conturi și cursuri. |
+| `COOKIE_SECURE` | Supervisorul impune `true` pentru backend. Cookie-ul rămâne HttpOnly și SameSite=Lax. |
+| `RENDER_EXTERNAL_URL` | Furnizată de Render; supervisorul o validează ca origine HTTPS și o adaugă în originile permise. |
+| `ALLOWED_ORIGINS` | Opțional pentru alte origini HTTPS explicite. Supervisorul adaugă URL-ul real Render; fără `*` sau cale. |
+| `GEMINI_API_KEY` | Secret introdus în Render Environment. Niciodată prefix `NEXT_PUBLIC_`, Git, Dockerfile sau document de proiect. |
+| `GEMINI_MODEL` | Modelul ales pentru apelurile backend; lipsa/disponibilitatea furnizorului este tratată prin fallback extractiv etichetat. |
+| `PDF_FONT_PATH` | Opțional dacă fontul Unicode nu este găsit automat; imaginea trebuie să includă un font compatibil cu diacriticele. |
+| `NEXT_PUBLIC_UPLOAD_LIMIT_MB` | Build argument implicit `15` în Dockerfile; limita interfeței se aliniază cu backendul. |
 
-La pornirea unui Quick Tunnel nou, adresa se poate schimba. Actualizează `BACKEND_ORIGIN` în setările proiectului Vercel și publică din nou buildul. Nu expune portul local 8000 și nu porni un tunel fără gateway-ul cu cheie. Scriptul refuză pornirea dacă lipsește fișierul cheii; nu există parolă implicită în cod. La rotirea cheii trebuie actualizat atât fișierul local, cât și secretul Vercel, apoi repornire/redeployment.
+`backend/.env` este doar configurație locală ignorată. În cloud, variabilele se setează în Render; nu încărcăm fișierul local. Mediul procesului are prioritate pentru backend. Modificarea unei variabile `NEXT_PUBLIC_*` necesită rebuild, deoarece se include în JavaScriptul trimis browserului. O cheie Gemini schimbată în mediul serverului necesită repornire/redeploy și reverificare.
 
-Procesele pornite pentru sesiunea curentă rulează cu ferestre ascunse, cu loguri în `.local-demo`. Oprește numai procesele demo identificate după port și linia de comandă. Instanța locală 8000 și proiectul vechi 8001 rămân independente. Datele demo persistă pe disc între reporniri, dar nu sunt găzduite în cloud și nu intră în Git.
+Supervisorul transmite procesului Node doar o listă restrânsă de variabile; cheia Gemini și secretele backendului nu sunt moștenite de frontend. `.dockerignore` exclude SQLite, sesiunile, documentele personale, parolele, `.env`, `.venv`, `node_modules` și directoarele media locale din contextul imaginii. Dacă un cont există pe vechiul demo, aceasta nu înseamnă că există și pe Render.
 
-## Publicare și limite
+## Pași concreți în Render Dashboard
 
-Integrarea GitHub a contului Vercel nu are încă acces la repo. Pentru această lansare pot fi încărcate direct sursele frontend verificate, fără `.env`, baze de date, chei, `node_modules` sau artefacte de build. Publicarea automată la push necesită conectarea ulterioară a repo-ului în Vercel; un push GitHub singur nu actualizează site-ul în această configurație.
+1. Deschide Dashboard în contul autentificat și verifică workspace-ul echipei.
+2. Alege **New → Web Service**, conectează repository-ul GitHub `archimex2026/4next` și acordă acces numai repository-ului necesar. Selectează branch-ul integrat și verificat; nu presupune că merge-ul a avut deja loc.
+3. Alege runtime **Docker**, context `.` din rădăcina repository-ului și Dockerfile Path `./Dockerfile.render`. Nu folosi separat Dockerfile-ul vechi al frontendului sau backendului pentru acest serviciu complet.
+4. Selectează planul **Free**. Nu adăuga disc și nu activa opțiuni cu cost. Denumirea serviciului determină URL-ul disponibil; nu promite un nume înaintea confirmării Render.
+5. Configurează variabilele serverului și secretul Gemini. Păstrează browserul pe aceeași origine și API-ul pe loopback. Nu dezvălui valoarea cheii în capturi sau loguri.
+6. Setează Health Check Path `/api/health` și creează serviciul. Citește logurile buildului; existența unui serviciu în listă nu confirmă deployment reușit.
+7. După starea **Live**, verifică URL-ul HTTPS, apoi urmează lista de acceptare de mai jos. Blueprintul are `autoDeployTrigger: off`; după un push verificat, folosește **Manual Deploy → Deploy latest commit**. Publicarea automată se poate activa ulterior numai după conectarea integrării GitHub; URL-ul public al repository-ului singur nu acordă aceste drepturi.
+Dacă se folosește **New → Blueprint**, selectează repository-ul după integrarea sursei verificate pe `main`, verifică preview-ul `render.yaml` și confirmă că apare numai serviciul Free fără disc. Nu dubla serviciul dacă a fost deja creat din Web Service.
 
-Demo-ul depinde de PC pornit, procesul backend, tunel și internet. Quick Tunnel nu oferă o promisiune de disponibilitate permanentă. Înaintea folosirii cu date reale, mutăm același backend pe o instanță cu volum persistent și backup pentru SQLite/uploaduri/media, păstrăm proxy-ul HTTPS și actualizăm originea. Nu punem SQLite într-un filesystem serverless temporar.
+8. Completează în README și în documentele de proiect URL-ul real, rezultatele verificărilor și limitele Free. Prezentarea Canva se pregătește după stabilizarea demo-ului.
 
-Coșul expiră logic după cinci zile; eliminarea fizică se face la următoarea pornire/solicitare API. Fișierele blocate sunt reîncercate dintr-o coadă SQLite. Nu există încă un job programat independent de traficul aplicației. Recuperarea parolei, verificarea emailului, istoricul persistent de chat, FTS5 și audio premium sunt diferențe documentate în auditul de backend.
+Dacă accesul GitHub sau Render necesită autentificare umană, pregătirea codului, testele și commitul pot continua. Lipsa accesului la serviciul extern nu blochează integrarea sursei verificate. Singurele confirmări necesare la configurare sunt accesul contului și orice schimbare care ar activa facturarea; Free a fost deja ales explicit.
 
-Surse tehnice: [Vercel routing](https://vercel.com/docs/routing), [Vercel environment variables](https://vercel.com/docs/environment-variables), [Cloudflare Quick Tunnels](https://developers.cloudflare.com/tunnel/get-started/quick-tunnels/).
+## Verificări ale configurației pregătite
+
+- Sursa locală a trecut 78/78 teste backend, 90% acoperire cod activ, 4/4 teste proxy, lint, TypeScript și build de producție.
+- `render.yaml` a trecut validarea locală cu schema oficială Draft 2020-12. CLI Render 2.29 este instalat, însă autentificarea browserului nu autentifică automat CLI-ul; validarea autentificată de platformă se verifică în preview-ul Dashboard după push.
+- GitHub Actions include acum buildul Docker și un smoke test real al containerului prin `scripts/smoke_render.py` pentru health, catalog și PDF. La această actualizare, noul job CI este în așteptarea pushului, iar Docker nu este instalat local. Nu declarăm încă imaginea construită sau serviciul Render live.
+
+## Checklist înainte de distribuirea linkului
+
+- [ ] Buildul Docker reușește, ambele procese pornesc, health checkul răspunde.
+- [ ] Pagina principală și API-ul răspund pe HTTPS; nu apar secrete sau erori de proxy în răspuns.
+- [ ] Un cont nou se înregistrează, se autentifică și se poate deloga; cookie-ul are Secure și HttpOnly.
+- [ ] Un material privat nu poate fi citit/exportat din alt cont sau ca vizitator.
+- [ ] Inspecție și upload PDF real, RO/EN, cu selectare concept și generare în limba documentului.
+- [ ] Lecții, highlights, notițe, progres, flashcard și quiz funcționează.
+- [ ] Chatul oferă citat exact pentru o întrebare prezentă și refuz pentru una absentă, inclusiv PDF cu rânduri vizuale rupte.
+- [ ] Cele cinci exporturi PDF sunt lizibile și includ diacritice; Markdown/Anki rămân disponibile.
+- [ ] Publicare/retragere, rating, clasă, invitație și revocarea partajării funcționează.
+- [ ] Coșul oprește accesul, restaurarea este privată și ștergerea definitivă reușește.
+- [ ] Funcțiile se verifică fără API-ul/tunelul calculatorului echipei.
+- [ ] Mesajul despre date temporare este vizibil; resetarea după restart/redeploy este acceptată și documentată.
+- [ ] Linkul final și baza de teste actuală sunt consemnate; nu declarăm automat funcțiile viitoare drept disponibile.
+
+## Istoricul Vercel și diagnosticul 502
+
+Pe 17 octombrie 2026, configurația anterioară a trecut verificări pentru homepage/API, autentificare HTTPS, upload și export PDF, chat/citate/refuz, clase și coș. Interfața era la `4next-study.vercel.app`, cu backend izolat pe PC la portul 18000, gateway secret și tunel. `4next.vercel.app` era ocupat.
+
+Ulterior, echipa a raportat 502 după sleep. Interfața putea fi disponibilă în timp ce backendul nu mai răspundea. Acesta este motivul migrării integrale pe Render. URL-ul Vercel și rezultatele sale rămân istoric; nu sunt o promisiune de disponibilitate curentă și nu se distribuie ca adresă oficială a noii lansări.
+
+Cheia Gemini a răspuns unui apel JSON real și unui upload în mod `ai_grounded` în runda anterioară. Alte cereri au întâlnit indisponibilitatea furnizorului și au folosit fallbackul extractiv. Disponibilitatea modelului rămâne distinctă de starea serverului Render.
+
+Surse tehnice: [Render Web Services](https://render.com/docs/web-services), [Render Free](https://render.com/docs/free), [Render Persistent Disks](https://render.com/docs/disks).
