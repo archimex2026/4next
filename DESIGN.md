@@ -14,3 +14,6 @@ Direcție: un caiet personal, cald și aerisit. Referința Notion din Awesome DE
 - Focus vizibil, etichete de formular, navigare prin tastatură, link pentru a sări la conținut și respect pentru preferința de mișcare redusă.
 
 Componentele și API-ul existente sunt reutilizate. Nu sunt introduse biblioteci suplimentare.
+# Direcția produsului
+
+Cerințele pentru AI-ul de studiu, chatul ancorat în document, pregătirea pentru examene și personalizarea ulterioară sunt în [`docs/directie_produs_4next.md`](docs/directie_produs_4next.md). Folosește acel document ca referință la implementare; ordinea etapelor rămâne o propunere până când echipa confirmă scopul.
