@@ -10,7 +10,7 @@ services:
     dockerfilePath: ./Dockerfile.render
     dockerContext: .
     # Public-repository deployment; deploy manually after CI until Git integration is configured.
-    autoDeployTrigger: off
+    autoDeployTrigger: "off"
     healthCheckPath: /api/health
     maxShutdownDelaySeconds: 30
     envVars:
