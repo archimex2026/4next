@@ -4,6 +4,8 @@
 
 Versiunea curentă este un prototip funcțional, publicat pe Render la [fournext-study.onrender.com](https://fournext-study.onrender.com). Interfața și API-ul rulează împreună, independent de calculatorul echipei. Fluxurile cloud testate includ autentificarea, uploadul PDF, generarea extractivă/AI, citările, exporturile PDF, studiul și clasele. Demo-ul folosește planul Free: datele pot fi resetate, iar furnizorul Gemini poate fi indisponibil; în acel caz este folosit fallbackul extractiv etichetat. Demo-ul Vercel anterior este retras din rolul de adresă oficială. Sursa verificată este integrată și publicată pe **main** și **flavius**; funcțiile pentru finanțare sunt prezentate separat în pagina „Ce urmează”.
 
+**Limitare observată la un PDF mare:** un document C++ de 127 de pagini, generat cu sesiunea de 120 de minute, a produs doar 3 lecții, 4 flashcarduri și 3 întrebări de quiz. Capturile arată și exemple care trebuie verificate pentru acuratețe semantică și fidelitatea citatelor. Generarea pentru documente mari este în evaluare și nu trebuie prezentată ca acoperire completă. Dovezile și handoff-ul tehnic sunt în [for_AI_Agents](for_AI_Agents/README.md) și [miscellaneous/ai-fail-2](miscellaneous/ai-fail-2/README.md).
+
 ## Funcții disponibile
 
 | Zonă | Ce funcționează |
@@ -95,6 +97,7 @@ Planul, pașii din Dashboard, configurația de mediu și verificările înainte 
 
 ## Documente de lucru
 
+- [Context și probleme active pentru următorul agent AI](for_AI_Agents/README.md)
 - [Checklist și brainstorming complet](docs/brainstorming_implementare.md)
 - [Direcția produsului](docs/directie_produs_4next.md)
 - [Sistemul vizual](DESIGN.md)
