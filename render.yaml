@@ -12,7 +12,6 @@ services:
     # Public-repository deployment; deploy manually after CI until Git integration is configured.
     autoDeployTrigger: "off"
     healthCheckPath: /api/health
-    maxShutdownDelaySeconds: 30
     envVars:
       - key: DATA_DIR
         value: /var/data
