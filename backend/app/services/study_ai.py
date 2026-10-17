@@ -7,7 +7,9 @@ import re
 import unicodedata
 from collections import Counter
 from app.config import GEMINI_API_KEY
-from app.services.language import detect_document_language, SUPPORTED_LANGUAGES
+from app.services.language import SUPPORTED_LANGUAGES
+from langdetect import detect_langs
+from langdetect.lang_detect_exception import LangDetectException
 
 logger = logging.getLogger(__name__)
 STOP_WORDS = set("""a al ale am au ai are ca care cel ce cei cele cu când cum cât câte din de despre dar doar după dintre e este eu el ea ei ele eram fost fi fie fără iar in în între la le li lor lui mai mult multe ne nici noi nu o orice pe pentru poate prin până sa sau se și si sunt să te toată toate tot tu un una unde unui unei unor va vi voi s acesta aceasta acela acest aceste acum astfel însă deoarece către dacă the a an and are as at be been by can do does for from has have how i if in into is it its may more not of on or our that their them there these they this those to was we were what when where which who why will with you your about also than then only each such through de la le les des du et est une un en au aux dans que qui pour sur par ne pas plus avec ce cette ces se son ses sont comme de el la los las un una en es por para con que del las se como sus the der die das ein eine und ist im in den von zu mit auf des nicht sich dem als auch le il lo gli una e di che per con del della sono non si da come este această aceste acest procesul proces prin folosind pentru dintre asupra folosește folosesc result resulting process processes using use used uses based source material document text chapter lesson please explain tell spune explică explica arată arata citează citeaza pagina pagină fragment ce inseamna înseamnă does mean give describe show summarize summarise explain tell please how much many me my our their these those can could would should its about also between de ce quel quelle quels quelles comment pourquoi est sont avoir être dans avec pour par au aux des les une sur vous nous je tu il elle ils elles mais donc ou où et que qui quoi questo questa questi queste anche perché perche cosa quale come essere nel nella della degli della delle dei tra fra gli del dello con per noi voi loro es son como qué que cuál por para porque las los una unos unas este esta estos estas se su sus yo tú él ella nosotros vosotros ellos ellas wer wie was warum welche welcher welches dem den der des im ist sind mit aus über und oder aber diese dieser dieses nicht sich ich du er sie wir ihr es zum zur von auf als ein eine einen einer eines haben wird werden werden sowie durch""".split())
@@ -95,8 +97,13 @@ def verify_citations(citations, pages, evidence=None):
 
 
 def validate_output_language(text, language):
-    detected = detect_document_language(text)
-    if detected["language"] != language or detected["confidence"] < .80:
+    # Generated fields are checked separately below. Re-running the document's
+    # three-window ambiguity scan for every field exhausts small demo CPUs.
+    try:
+        detected = detect_langs(text[:4000])[0]
+    except (LangDetectException, IndexError):
+        raise ValueError("Generated language cannot be verified") from None
+    if detected.lang != language or detected.prob < .80:
         raise ValueError("Generated language differs from the document")
 
 

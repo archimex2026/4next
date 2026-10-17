@@ -14,6 +14,8 @@
 
 - Extragere cu pdfplumber, deduplicare de glyph-uri și excluderea watermarkurilor mari diagonale. Operatorii C++ precum `++` și `<<` rămân intacți.
 - Explicațiile, cardurile și quizurile AI se păstrează după validarea structurii și limbii. Un apel separat verifică suportul în fragmentele citate; afirmațiile cu numere absente din dovezi sunt respinse și local.
+- Un card sau quiz opțional cu citare invalidă este omis; nu anulează lecțiile deja validate. Lecțiile fără citări valide rămân respinse.
+- Validarea limbii păstrează verificarea fiecărui câmp, cu o singură detecție limitată per câmp, pentru CPU-ul demo.
 - Citările folosesc ID-uri ale fragmentelor oferite de server. Serverul returnează textul exact și pagina reală, în loc să ceară modelului să reintroducă manual citate lungi.
 - Documentele mari folosesc un context limitat, distribuit între toate paginile. Cinci minute înseamnă overview/selectare, fără promisiunea acoperirii întregului document.
 - Chatul recunoaște întrebări generale, comparații și identificatori afectați de spațiere. Pentru un overview, caută dovezi distribuite între pagini.
