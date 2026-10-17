@@ -1,94 +1,93 @@
-import unittest
+"""Public demonstration and legacy migration checks using a disposable database."""
+import json
+import sqlite3
 import sys
+import tempfile
+import unittest
+from contextlib import closing
 from pathlib import Path
+from unittest.mock import patch
 
-# Add backend directory to path
-backend_dir = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(backend_dir))
-
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from fastapi.testclient import TestClient
+from app import database
 from app.main import app
-from app.database import init_db
 from app.services.demo_seeder import seed_demo_data
 
-class TestBook2CourseAPI(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        init_db()
-        # Seed test data
+
+class PublicDemoAPI(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.database_patch = patch.object(database, "DB_PATH", Path(self.temp.name) / "demo.db")
+        self.database_patch.start()
+        database.init_db()
         seed_demo_data(generate_media_assets=False)
-        cls.client = TestClient(app)
+        self.client = TestClient(app)
 
-    def test_01_root(self):
-        response = self.client.get("/")
-        self.assertEqual(response.status_code, 200)
-        data = response.json()
-        self.assertEqual(data["app"], "Book2Course AI")
-        self.assertEqual(data["status"], "ready")
+    def tearDown(self):
+        self.client.close()
+        self.database_patch.stop()
+        self.temp.cleanup()
 
-    def test_02_system_status(self):
-        response = self.client.get("/api/demo/status")
-        self.assertEqual(response.status_code, 200)
-        data = response.json()
-        self.assertEqual(data["status"], "online")
-        self.assertTrue(data["demo_ready"])
-        self.assertGreaterEqual(data["books_count"], 1)
-        self.assertGreaterEqual(data["courses_count"], 1)
+    def test_authored_demos_have_real_sources_and_are_public(self):
+        courses = self.client.get("/api/courses?view=public").json()
+        self.assertEqual({c["id"] for c in courses}, {"course-demo-biologie", "course-demo-physics"})
+        for course_id, language in [("course-demo-biologie","ro"),("course-demo-physics","en")]:
+            result = self.client.get("/api/courses/" + course_id)
+            self.assertEqual(result.status_code, 200, result.text)
+            course = result.json()
+            self.assertEqual(course["language"], language)
+            self.assertEqual(course["visibility"], "public")
+            source = self.client.get("/api/study/" + course_id + "/source").json()
+            self.assertTrue(source["pages"][0]["text"])
+            for level in course["levels"]:
+                for lesson in level["lessons"]:
+                    for citation in lesson["source_citations"]:
+                        self.assertIn(citation["text"], source["pages"][0]["text"])
 
-    def test_03_list_courses(self):
-        response = self.client.get("/api/courses")
-        self.assertEqual(response.status_code, 200)
-        courses = response.json()
-        self.assertIsInstance(courses, list)
-        self.assertGreaterEqual(len(courses), 1)
+    def test_seed_is_idempotent_and_keeps_existing_materials(self):
+        with closing(database.get_db_connection()) as conn:
+            conn.execute("INSERT INTO books(id,title,visibility) VALUES('legacy-private','Original notes','private')")
+            conn.commit()
+        seed_demo_data(generate_media_assets=False)
+        with closing(database.get_db_connection()) as conn:
+            self.assertEqual(conn.execute("SELECT COUNT(*) FROM books").fetchone()[0], 3)
+            self.assertEqual(conn.execute("SELECT title FROM books WHERE id='legacy-private'").fetchone()[0], "Original notes")
+        self.assertNotIn("legacy-private", {c.get("book_id") for c in self.client.get("/api/courses").json()})
 
-    def test_04_get_course_detail(self):
-        response = self.client.get("/api/courses/course-lean-startup")
-        self.assertEqual(response.status_code, 200)
-        course = response.json()
-        self.assertEqual(course["id"], "course-lean-startup")
-        self.assertIn("levels", course)
-        self.assertEqual(len(course["levels"]), 3)
-        self.assertIn("flashcards", course)
-        self.assertIn("quizzes", course)
+    def test_unknown_resources_are_errors_and_public_notes_require_account(self):
+        self.assertEqual(self.client.get("/api/courses/missing").status_code, 404)
+        course = self.client.get("/api/courses/course-demo-biologie").json()
+        lesson_id = course["levels"][0]["lessons"][0]["id"]
+        self.assertEqual(self.client.post(f"/api/lessons/{lesson_id}/notes", json={"content":"hello"}).status_code, 401)
+        self.assertEqual(self.client.get(f"/api/lessons/{lesson_id}").status_code, 200)
 
-    def test_05_get_lesson(self):
-        response = self.client.get("/api/lessons/lsn-ls-1")
-        self.assertEqual(response.status_code, 200)
-        lesson = response.json()
-        self.assertEqual(lesson["id"], "lsn-ls-1")
-        self.assertEqual(lesson["order_index"], 1)
-        self.assertTrue(len(lesson["key_ideas"]) > 0)
-        self.assertTrue(len(lesson["mermaid_diagram"]) > 0)
+    def test_source_pdf_contains_content(self):
+        response = self.client.get("/api/study/course-demo-biologie/pdf?kind=source")
+        self.assertEqual(response.status_code, 200, response.text[:200] if response.status_code != 200 else "")
+        self.assertIn("application/pdf", response.headers["content-type"])
+        self.assertTrue(response.content.startswith(b"%PDF-"))
 
-    def test_06_toggle_completion(self):
-        response = self.client.post("/api/lessons/lsn-ls-1/complete")
-        self.assertEqual(response.status_code, 200)
-        data = response.json()
-        self.assertIn("completed", data)
 
-    def test_07_flashcards(self):
-        response = self.client.get("/api/flashcards/course/course-lean-startup")
-        self.assertEqual(response.status_code, 200)
-        cards = response.json()
-        self.assertGreaterEqual(len(cards), 10)
+class LegacyMigration(unittest.TestCase):
+    def test_old_uploads_stay_private_and_known_demo_remains_public(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "legacy.db"
+            with closing(sqlite3.connect(path)) as conn:
+                conn.execute("""CREATE TABLE books(id TEXT PRIMARY KEY,title TEXT NOT NULL,author TEXT,
+                    page_count INTEGER DEFAULT 0,file_path TEXT,file_name TEXT,file_type TEXT,file_size INTEGER,
+                    cover_color TEXT,status TEXT,summary TEXT,created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)""")
+                conn.execute("INSERT INTO books(id,title) VALUES('book-lean-startup','Old demo')")
+                conn.execute("INSERT INTO books(id,title) VALUES('book-unclaimed-notes','Private old notes')")
+                conn.commit()
+            with patch.object(database,"DB_PATH",path):
+                database.init_db()
+                database.init_db()
+                with closing(database.get_db_connection()) as conn:
+                    values = {row["id"]:row["visibility"] for row in conn.execute("SELECT id,visibility FROM books")}
+                self.assertEqual(values["book-lean-startup"],"public")
+                self.assertEqual(values["book-unclaimed-notes"],"private")
 
-    def test_08_quiz_submission(self):
-        # Submit correct answer for first question
-        payload = {"answers": {"qz-test": 1}}
-        response = self.client.post("/api/quizzes/course/course-lean-startup/submit", json=payload)
-        self.assertEqual(response.status_code, 200)
-        data = response.json()
-        self.assertIn("score", data)
-        self.assertIn("total", data)
-        self.assertIn("percentage", data)
-        self.assertIn("feedback", data)
-
-    def test_09_export_markdown(self):
-        response = self.client.get("/api/export/course/course-lean-startup/markdown")
-        self.assertEqual(response.status_code, 200)
-        self.assertIn("The Lean Startup", response.text)
-        self.assertIn("mermaid", response.text)
 
 if __name__ == "__main__":
     unittest.main()

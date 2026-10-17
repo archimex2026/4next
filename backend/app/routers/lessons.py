@@ -1,197 +1,102 @@
 import json
-from typing import Optional
-from fastapi import APIRouter, HTTPException, Body
+import re
+from contextlib import closing
+from fastapi import APIRouter, Body, Depends, HTTPException
 from app.database import get_db_connection
 from app.schemas import NoteUpdateSchema, GenerateAudioRequest
+from app.security import check_course_access, optional_user, require_user
+from app.routers.courses import user_lesson
 from app.services.audio_generator import generate_audio_lesson, DEFAULT_VOICES
-from app.services.video_generator import generate_video_lesson
+from app.generation_limits import generation_slot
 
 router = APIRouter(prefix="/api/lessons", tags=["Lessons"])
 
+
+def checked_lesson(conn,lesson_id,user,write=False):
+    row = conn.execute("SELECT * FROM lessons WHERE id=?",(lesson_id,)).fetchone()
+    if not row:
+        raise HTTPException(404,"Lecția nu a fost găsită.")
+    course = check_course_access(conn,row["course_id"],user,write)
+    return dict(row),course
+
+
 @router.get("/{lesson_id}")
-def get_lesson(lesson_id: str, lang: str = "ro"):
-    conn = get_db_connection()
-    cursor = conn.cursor()
+def get_lesson(lesson_id: str,lang: str | None=None,user: dict | None=Depends(optional_user)):
+    with closing(get_db_connection()) as conn:
+        row,course = checked_lesson(conn,lesson_id,user)
+        language = course.get("language") or "en"
+        if lang is not None and lang != language:
+            raise HTTPException(400,"Lecția folosește limba documentului sursă.")
+        lesson = user_lesson(conn,row,user)
+        lesson["language"] = language
+        lesson["is_owner"] = bool(user and course["owner_id"] == user["id"])
+        lesson["active_audio_url"] = lesson.get(f"audio_url_{language}") or lesson.get("audio_url") or None
+        lesson["active_transcript"] = lesson.get(f"transcript_{language}") or lesson.get("transcript") or []
+        all_lessons = [dict(item) for item in conn.execute("SELECT id,title,order_index FROM lessons WHERE course_id=? ORDER BY order_index,id",(lesson["course_id"],))]
+        current = next(i for i,item in enumerate(all_lessons) if item["id"] == lesson_id)
+        lesson["prev_lesson"] = all_lessons[current-1] if current else None
+        lesson["next_lesson"] = all_lessons[current+1] if current+1 < len(all_lessons) else None
+        note = conn.execute("SELECT content FROM notes WHERE lesson_id=? AND user_id=?",(lesson_id,user["id"])).fetchone() if user else None
+        lesson["notes"] = note["content"] if note else ""
+        return lesson
 
-    cursor.execute("SELECT * FROM lessons WHERE id = ?", (lesson_id,))
-    l_row = cursor.fetchone()
-    if not l_row:
-        conn.close()
-        raise HTTPException(status_code=404, detail="Lesson not found")
-
-    lesson = dict(l_row)
-
-    # Parse JSON fields
-    for field in ["key_ideas", "practical_insights", "examples", "action_items", "transcript", "transcript_ro", "transcript_en"]:
-        val = lesson.get(field)
-        if val and isinstance(val, str):
-            try:
-                lesson[field] = json.loads(val)
-            except Exception:
-                lesson[field] = []
-        elif not val:
-            lesson[field] = []
-
-    # Get course title
-    cursor.execute("SELECT title, book_id FROM courses WHERE id = ?", (lesson["course_id"],))
-    course = cursor.fetchone()
-    course_title = course["title"] if course else "Course"
-
-    # Ensure audio URLs and files exist without blocking
-    if not lesson.get("audio_url_ro"):
-        lesson["audio_url_ro"] = f"/media/audio/{lesson_id}_ro.mp3"
-    if not lesson.get("audio_url_en"):
-        lesson["audio_url_en"] = f"/media/audio/{lesson_id}_en.mp3"
-    if not lesson.get("video_url"):
-        lesson["video_url"] = f"/media/video/{lesson_id}.mp4"
-
-    # Select active audio_url and transcript based on requested lang
-    if lang == "en":
-        lesson["active_audio_url"] = lesson.get("audio_url_en") or lesson.get("audio_url") or f"/media/audio/{lesson_id}_en.mp3"
-        lesson["active_transcript"] = lesson.get("transcript_en") or lesson.get("transcript") or []
-    else:
-        lesson["active_audio_url"] = lesson.get("audio_url_ro") or lesson.get("audio_url") or f"/media/audio/{lesson_id}_ro.mp3"
-        lesson["active_transcript"] = lesson.get("transcript_ro") or lesson.get("transcript") or []
-
-    # Fallback to main audio_url if active is missing
-    if not lesson.get("audio_url"):
-        lesson["audio_url"] = lesson["active_audio_url"]
-
-    # Find prev and next lesson in course
-    cursor.execute("""
-    SELECT id, title, order_index FROM lessons
-    WHERE course_id = ?
-    ORDER BY order_index ASC
-    """, (lesson["course_id"],))
-    all_lessons = [dict(r) for r in cursor.fetchall()]
-    
-    current_idx = next((i for i, item in enumerate(all_lessons) if item["id"] == lesson_id), -1)
-    lesson["prev_lesson"] = all_lessons[current_idx - 1] if current_idx > 0 else None
-    lesson["next_lesson"] = all_lessons[current_idx + 1] if current_idx < len(all_lessons) - 1 else None
-
-    # Get notes
-    cursor.execute("SELECT content FROM notes WHERE lesson_id = ?", (lesson_id,))
-    note = cursor.fetchone()
-    lesson["notes"] = note["content"] if note else ""
-
-    conn.close()
-    return lesson
 
 @router.post("/{lesson_id}/language/{lang}")
-def switch_lesson_language(lesson_id: str, lang: str):
-    """
-    Switches audio & transcript between 'ro' and 'en' for the specified lesson.
-    Returns the audio URL and updated metadata.
-    """
-    if lang not in ["ro", "en"]:
-        raise HTTPException(status_code=400, detail="Limba suportată este 'ro' sau 'en'.")
-    return get_lesson(lesson_id=lesson_id, lang=lang)
+def switch_lesson_language(lesson_id: str,lang: str,user: dict | None=Depends(optional_user)):
+    return get_lesson(lesson_id,lang,user)
+
 
 @router.post("/{lesson_id}/complete")
-def toggle_lesson_completion(lesson_id: str):
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT completed FROM lessons WHERE id = ?", (lesson_id,))
-    row = cursor.fetchone()
-    if not row:
-        conn.close()
-        raise HTTPException(status_code=404, detail="Lesson not found")
+def toggle_lesson_completion(lesson_id: str,user: dict=Depends(require_user)):
+    with closing(get_db_connection()) as conn:
+        checked_lesson(conn,lesson_id,user)
+        row = conn.execute("SELECT completed FROM user_lesson_progress WHERE user_id=? AND lesson_id=?",(user["id"],lesson_id)).fetchone()
+        completed = 0 if row and row["completed"] else 1
+        conn.execute("""INSERT INTO user_lesson_progress(user_id,lesson_id,completed) VALUES(?,?,?)
+            ON CONFLICT(user_id,lesson_id) DO UPDATE SET completed=excluded.completed,updated_at=CURRENT_TIMESTAMP""",(user["id"],lesson_id,completed))
+        conn.commit()
+    return {"lesson_id":lesson_id,"completed":bool(completed)}
 
-    new_status = 0 if row["completed"] else 1
-    cursor.execute("UPDATE lessons SET completed = ? WHERE id = ?", (new_status, lesson_id))
-    conn.commit()
-    conn.close()
-    return {"lesson_id": lesson_id, "completed": bool(new_status)}
 
 @router.post("/{lesson_id}/notes")
-def save_lesson_notes(lesson_id: str, note_data: NoteUpdateSchema):
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT course_id FROM lessons WHERE id = ?", (lesson_id,))
-    row = cursor.fetchone()
-    if not row:
-        conn.close()
-        raise HTTPException(status_code=404, detail="Lesson not found")
+def save_lesson_notes(lesson_id: str,note_data: NoteUpdateSchema,user: dict=Depends(require_user)):
+    if len(note_data.content) > 50_000:
+        raise HTTPException(422,"Notițele pot avea maximum 50.000 de caractere.")
+    with closing(get_db_connection()) as conn:
+        lesson,_ = checked_lesson(conn,lesson_id,user)
+        conn.execute("""INSERT INTO notes(id,course_id,lesson_id,content,user_id) VALUES(?,?,?,?,?)
+            ON CONFLICT(id) DO UPDATE SET content=excluded.content,updated_at=CURRENT_TIMESTAMP""",
+            (f"note-{user['id']}-{lesson_id}",lesson["course_id"],lesson_id,note_data.content,user["id"]))
+        conn.commit()
+    return {"status":"saved","lesson_id":lesson_id}
 
-    course_id = row["course_id"]
-    cursor.execute("""
-    INSERT INTO notes (id, course_id, lesson_id, content, updated_at)
-    VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
-    ON CONFLICT(id) DO UPDATE SET content = excluded.content, updated_at = CURRENT_TIMESTAMP
-    """, (f"note-{lesson_id}", course_id, lesson_id, note_data.content))
-    conn.commit()
-    conn.close()
-    return {"status": "saved", "lesson_id": lesson_id}
 
 @router.post("/{lesson_id}/generate-audio")
-def regenerate_lesson_audio(lesson_id: str, req: Optional[GenerateAudioRequest] = Body(default=None)):
-    """
-    Synthesizes studio-grade neural voice in Romanian (or English) via edge-tts.
-    Updates the lesson's audio URL, exact audio duration, and scene timestamp alignments.
-    """
-    req = req or GenerateAudioRequest()
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM lessons WHERE id = ?", (lesson_id,))
-    l_row = cursor.fetchone()
-    if not l_row:
-        conn.close()
-        raise HTTPException(status_code=404, detail="Lesson not found")
-
-    lesson = dict(l_row)
-    lang_code = "ro" if req.lang == "ro" else "en"
-
-    def _parse(val):
-        if val and isinstance(val, str):
+def regenerate_lesson_audio(lesson_id: str,req: GenerateAudioRequest | None=Body(default=None),user: dict=Depends(require_user)):
+    with closing(get_db_connection()) as conn:
+        raw,course = checked_lesson(conn,lesson_id,user,write=True)
+        lesson = user_lesson(conn,raw,user)
+        language = course["language"] or "en"
+        req = req or GenerateAudioRequest(lang=language)
+        requested_language = req.lang if "lang" in req.model_fields_set else language
+        if language not in ("ro","en") or requested_language != language:
+            raise HTTPException(400,"Audio este disponibil pentru documente în română sau engleză, în limba sursei.")
+        if req.custom_script and req.custom_script.strip():
+            raise HTTPException(400,"Audio se generează din lecția documentului sursă.")
+        voice = req.voice if "voice" in req.model_fields_set and req.voice else DEFAULT_VOICES[language]
+        if not voice.startswith("ro-" if language == "ro" else "en-"):
+            raise HTTPException(400,"Vocea trebuie să folosească limba documentului.")
+        if not re.fullmatch(r"[+-]\d{1,2}%", req.rate or "+0%"):
+            raise HTTPException(422,"Ritmul audio nu este valid.")
+        with generation_slot(user["id"], "audio"):
             try:
-                return json.loads(val)
+                audio_url,duration,scenes = generate_audio_lesson(lesson_id=lesson_id,title=lesson["title"],
+                    summary=lesson.get("short_summary") or "",long_explanation=lesson.get("long_explanation") or "",
+                    key_ideas=lesson["key_ideas"],practical_insights=lesson["practical_insights"],examples=lesson["examples"],
+                    action_items=lesson["action_items"],lang=language,voice=voice,rate=req.rate or "+0%",return_details=True)
             except Exception:
-                return []
-        return val or []
-
-    key_ideas = _parse(lesson.get("key_ideas"))
-    practical_insights = _parse(lesson.get("practical_insights"))
-    examples = _parse(lesson.get("examples"))
-    action_items = _parse(lesson.get("action_items"))
-
-    voice_to_use = req.voice or (DEFAULT_VOICES["ro"] if lang_code == "ro" else DEFAULT_VOICES["en"])
-
-    audio_url, duration_sec, scenes = generate_audio_lesson(
-        lesson_id=lesson_id,
-        title=lesson.get("title", ""),
-        summary=lesson.get("short_summary", ""),
-        long_explanation=lesson.get("long_explanation", ""),
-        key_ideas=key_ideas,
-        practical_insights=practical_insights,
-        examples=examples,
-        action_items=action_items,
-        conclusion="Stăpâniți aceste fundamente pentru a acționa cu maximă eficiență." if lang_code == "ro" else "Master these principles to achieve immediate operational clarity.",
-        custom_script=req.custom_script or "",
-        lang=lang_code,
-        voice=voice_to_use,
-        rate=req.rate or "+0%",
-        return_details=True
-    )
-
-    mins = max(1, int(round(duration_sec / 60)))
-    duration_str = f"{mins} min{'s' if mins > 1 else ''}"
-    scenes_json = json.dumps(scenes)
-
-    if lang_code == "ro":
-        cursor.execute("""
-        UPDATE lessons 
-        SET audio_url_ro = ?, transcript_ro = ?, duration = ?, audio_url = ?
-        WHERE id = ?
-        """, (audio_url, scenes_json, duration_str, audio_url, lesson_id))
-    else:
-        cursor.execute("""
-        UPDATE lessons 
-        SET audio_url_en = ?, transcript_en = ?
-        WHERE id = ?
-        """, (audio_url, scenes_json, lesson_id))
-
-    conn.commit()
-    conn.close()
-
-    return get_lesson(lesson_id=lesson_id, lang=lang_code)
-
+                raise HTTPException(503,"Serviciul audio nu este disponibil momentan. Lecția poate fi citită în continuare.") from None
+        conn.execute(f"""UPDATE lessons SET audio_url=?,audio_url_{language}=?,transcript=?,transcript_{language}=?,duration=? WHERE id=?""",
+            (audio_url,audio_url,json.dumps(scenes),json.dumps(scenes),f"{max(1,round(duration/60))} min",lesson_id))
+        conn.commit()
+    return get_lesson(lesson_id,language,user)

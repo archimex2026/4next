@@ -1,0 +1,8 @@
+[run]
+omit =
+    */services/video_generator.py
+    */services/diagram_generator.py
+
+[report]
+fail_under = 80
+skip_empty = True

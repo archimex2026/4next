@@ -1,281 +1,98 @@
 import { Book, Course, Lesson, Flashcard, QuizQuestion, QuizResult } from './types';
-import { DEMO_COURSE, DEMO_QUIZZES } from './demoData';
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-
-export async function fetchBooks(): Promise<Book[]> {
-  try {
-    const res = await fetch(`${API_BASE}/api/books`, { cache: 'no-store' });
-    if (res.ok) return await res.json();
-  } catch {
-    // Fallback
-  }
-  return [DEMO_COURSE.book as Book];
+export const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+export class ApiError extends Error {
+    constructor(message: string, public status: number) { super(message); }
 }
-
-export async function fetchBook(id: string): Promise<Book> {
-  try {
-    const res = await fetch(`${API_BASE}/api/books/${id}`, { cache: 'no-store' });
-    if (res.ok) return await res.json();
-    if (res.status === 404 && id === 'book-lean-startup') {
-      return DEMO_COURSE.book as Book;
-    }
-  } catch (err) {
-    if (id === 'book-lean-startup') {
-      return DEMO_COURSE.book as Book;
-    }
-    console.error(`Error fetching book ${id}:`, err);
-  }
-  
-  if (id === 'book-lean-startup') {
-    return DEMO_COURSE.book as Book;
-  }
-  return {
-    id,
-    title: 'Analyzing Document...',
-    author: 'Author',
-    page_count: 1,
-    cover_color: '#0A66C2',
-    status: 'processing',
-    course_id: undefined,
-  };
-}
-
-export async function uploadBook(
-  input: { file?: File; text?: string; title?: string; author?: string; language?: string } | File,
-  legacyTitle?: string,
-  legacyAuthor?: string
-): Promise<{ book_id: string; title: string; language?: string; course_id?: string; status?: string }> {
-  const formData = new FormData();
-
-  if (input instanceof File) {
-    formData.append('file', input);
-    if (legacyTitle) formData.append('title', legacyTitle);
-    if (legacyAuthor) formData.append('author', legacyAuthor);
-    formData.append('language', 'ro');
-  } else {
-    if (input.file) formData.append('file', input.file);
-    if (input.text) formData.append('text', input.text);
-    if (input.title) formData.append('title', input.title);
-    if (input.author) formData.append('author', input.author);
-    formData.append('language', input.language || 'ro');
-  }
-
-  const res = await fetch(`${API_BASE}/api/books/upload`, {
-    method: 'POST',
-    body: formData,
-  });
-
-  if (!res.ok) {
-    let errorDetail = `Upload failed with HTTP ${res.status}`;
+export async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+    let response: Response;
     try {
-      const errJson = await res.json();
-      if (errJson && errJson.detail) errorDetail = errJson.detail;
-    } catch {
-      // ignore
+        response = await fetch(`${API_BASE}${path}`, { cache: 'no-store', ...options, credentials: 'include' });
     }
-    throw new Error(errorDetail);
-  }
-
-  return await res.json();
-}
-
-export async function fetchCourses(): Promise<Course[]> {
-  try {
-    const res = await fetch(`${API_BASE}/api/courses`, { cache: 'no-store' });
-    if (res.ok) {
-      const data = await res.json();
-      if (Array.isArray(data) && data.length > 0) return data;
+    catch {
+        throw new ApiError('Nu putem contacta serverul. Verifică dacă aplicația este pornită și încearcă din nou.', 0);
     }
-  } catch (err) {
-    console.error('Error fetching courses:', err);
-  }
-  return [DEMO_COURSE];
-}
-
-export async function fetchCourse(id: string): Promise<Course> {
-  try {
-    const res = await fetch(`${API_BASE}/api/courses/${id}`, { cache: 'no-store' });
-    if (res.ok) return await res.json();
-  } catch {
-    // Backend offline fallback
-  }
-  return DEMO_COURSE;
-}
-
-export async function fetchLesson(id: string, lang: 'ro' | 'en' = 'ro'): Promise<Lesson> {
-  try {
-    const res = await fetch(`${API_BASE}/api/lessons/${id}?lang=${lang}`, { cache: 'no-store' });
-    if (res.ok) return await res.json();
-  } catch {
-    // Backend offline fallback
-  }
-  const allLessons = DEMO_COURSE.levels?.flatMap((lvl) => lvl.lessons) || [];
-  const found = allLessons.find((l) => l.id === id) || allLessons[0];
-  if (found) {
-    return {
-      ...found,
-      active_audio_url: lang === 'en' ? (found.audio_url_en || found.audio_url) : (found.audio_url_ro || found.audio_url),
-      active_transcript: lang === 'en' ? (found.transcript_en || found.transcript) : (found.transcript_ro || found.transcript),
-    };
-  }
-  throw new Error(`Lesson ${id} not found`);
-}
-
-export async function switchLessonLanguage(id: string, lang: 'ro' | 'en'): Promise<Lesson> {
-  try {
-    const res = await fetch(`${API_BASE}/api/lessons/${id}/language/${lang}`, { method: 'POST' });
-    if (res.ok) return await res.json();
-  } catch {
-    // Backend offline fallback
-  }
-  return fetchLesson(id, lang);
-}
-
-export function getLessonExportUrl(lessonId: string, type: 'audio' | 'video' | 'diagram' | 'text', lang: 'ro' | 'en' = 'ro'): string {
-  if (type === 'audio') return `${API_BASE}/api/export/lesson/${lessonId}/audio?lang=${lang}`;
-  if (type === 'video') return `${API_BASE}/api/export/lesson/${lessonId}/video`;
-  if (type === 'diagram') return `${API_BASE}/api/export/lesson/${lessonId}/diagram`;
-  if (type === 'text') return `${API_BASE}/api/export/lesson/${lessonId}/text`;
-  return `${API_BASE}/api/export/course/${lessonId}/markdown`;
-}
-
-export async function toggleLessonComplete(id: string): Promise<{ completed: boolean }> {
-  try {
-    const res = await fetch(`${API_BASE}/api/lessons/${id}/complete`, { method: 'POST' });
-    if (res.ok) return await res.json();
-  } catch {
-    // Fallback
-  }
-  return { completed: true };
-}
-
-export async function saveLessonNotes(id: string, content: string): Promise<{ status: string }> {
-  try {
-    const res = await fetch(`${API_BASE}/api/lessons/${id}/notes`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ content }),
-    });
-    if (res.ok) return await res.json();
-  } catch {
-    // Fallback
-  }
-  return { status: 'saved' };
-}
-
-export async function fetchFlashcards(courseId: string): Promise<Flashcard[]> {
-  try {
-    const res = await fetch(`${API_BASE}/api/flashcards/course/${courseId}`, { cache: 'no-store' });
-    if (res.ok) {
-      const data = await res.json();
-      if (Array.isArray(data) && data.length > 0) return data;
+    if (!response.ok) {
+        let message = response.status === 401 ? 'Autentifică-te pentru a continua.' : response.status === 403 ? 'Nu ai acces la acest material.' : response.status === 404 ? 'Materialul solicitat nu a fost găsit.' : `Cererea nu a reușit (${response.status}).`;
+        try {
+            const body = await response.json();
+            if (typeof body.detail === 'string')
+                message = body.detail;
+            else if (typeof body.detail?.message === 'string')
+                message = body.detail.message;
+            else if (Array.isArray(body.detail))
+                message = body.detail.map((item: {
+                    msg?: string;
+                }) => item.msg || 'Date invalide.').join(' ');
+        }
+        catch { /* Preserve the HTTP error when no JSON exists. */ }
+        throw new ApiError(message, response.status);
     }
-  } catch {
-    // Backend offline fallback
-  }
-  return DEMO_COURSE.flashcards || [];
+    if (response.status === 204)
+        return undefined as T;
+    return response.json();
 }
-
-export async function toggleFlashcardMastery(cardId: string): Promise<{ mastered: boolean }> {
-  try {
-    const res = await fetch(`${API_BASE}/api/flashcards/${cardId}/master`, { method: 'POST' });
-    if (res.ok) return await res.json();
-  } catch {
-    // Fallback
-  }
-  return { mastered: true };
+export function mutate<T>(path: string, body?: unknown, method = 'POST') {
+    return request<T>(path, { method, headers: { 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) });
 }
-
-export async function fetchQuizzes(courseId: string): Promise<QuizQuestion[]> {
-  try {
-    const res = await fetch(`${API_BASE}/api/quizzes/course/${courseId}`, { cache: 'no-store' });
-    if (res.ok) {
-      const data = await res.json();
-      if (Array.isArray(data) && data.length > 0) return data;
-    }
-  } catch {
-    // Backend offline fallback
-  }
-  return DEMO_QUIZZES;
+export function fetchBooks() { return request<Book[]>('/api/books'); }
+export function fetchBook(id: string) { return request<Book>(`/api/books/${id}`); }
+export interface UploadInput {
+    file?: File;
+    text?: string;
+    title?: string;
+    author?: string;
+    language?: string;
+    visibility?: string;
+    study_minutes?: number;
+    depth?: string;
+    focus_keywords?: string;
 }
-
-export async function submitQuiz(courseId: string, answers: Record<string, number>): Promise<QuizResult> {
-  try {
-    const res = await fetch(`${API_BASE}/api/quizzes/course/${courseId}/submit`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ answers }),
-    });
-    if (res.ok) return await res.json();
-  } catch {
-    // Fallback
-  }
-
-  let score = 0;
-  const feedback = DEMO_QUIZZES.map((q) => {
-    const userSelected = answers[q.id];
-    const isCorrect = userSelected === q.correct_index;
-    if (isCorrect) score += 1;
-    return {
-      quiz_id: q.id,
-      question: q.question,
-      options: q.options,
-      selected_index: userSelected !== undefined ? userSelected : -1,
-      correct_index: q.correct_index,
-      is_correct: isCorrect,
-      explanation: q.explanation || '',
-    };
-  });
-
-  const percentage = Math.round((score / DEMO_QUIZZES.length) * 100);
-  return {
-    score,
-    total: DEMO_QUIZZES.length,
-    percentage,
-    passed: percentage >= 70,
-    feedback,
-  };
+export async function uploadBook(input: UploadInput | File, title?: string, author?: string) {
+    const data = input instanceof File ? { file: input, title, author } : input;
+    const form = new FormData();
+    Object.entries(data).forEach(([key, value]) => { if (value !== undefined && value !== '')
+        form.append(key, value instanceof File ? value : String(value)); });
+    return request<{
+        book_id: string;
+        course_id?: string;
+        title: string;
+        language?: string;
+        status?: string;
+    }>('/api/books/upload', { method: 'POST', body: form });
 }
-
-export async function resetDemoLibrary(): Promise<void> {
-  try {
-    await fetch(`${API_BASE}/api/demo/reset`, { method: 'POST' });
-  } catch {
-    // Fallback
-  }
+export function fetchCourses(view = 'all', query = '') { return request<Course[]>(`/api/courses?view=${view}&q=${encodeURIComponent(query)}`); }
+export function fetchCourse(id: string) { return request<Course>(`/api/courses/${id}`); }
+export function fetchLesson(id: string, lang?: string) { return request<Lesson>(`/api/lessons/${id}${lang ? `?lang=${lang}` : ''}`); }
+export function switchLessonLanguage(id: string, lang: string) { return mutate<Lesson>(`/api/lessons/${id}/language/${lang}`); }
+export function toggleLessonComplete(id: string) { return mutate<{
+    completed: boolean;
+}>(`/api/lessons/${id}/complete`); }
+export function saveLessonNotes(id: string, content: string) { return mutate<{
+    status: string;
+}>(`/api/lessons/${id}/notes`, { content }); }
+export function fetchFlashcards(id: string) { return request<Flashcard[]>(`/api/flashcards/course/${id}`); }
+export function toggleFlashcardMastery(id: string) { return mutate<{
+    mastered: boolean;
+}>(`/api/flashcards/${id}/master`); }
+export function fetchQuizzes(id: string) { return request<QuizQuestion[]>(`/api/quizzes/course/${id}`); }
+export function submitQuiz(id: string, answers: Record<string, number>) { return mutate<QuizResult>(`/api/quizzes/course/${id}/submit`, { answers }); }
+export function generateLessonAudio(id: string, voice?: string, lang?: string, rate = '+0%') { return mutate<Lesson>(`/api/lessons/${id}/generate-audio`, { voice, lang, rate }); }
+export function getLessonExportUrl(id: string, type: string, lang?: string) { return `${API_BASE}/api/export/lesson/${id}/${type}${lang ? `?lang=${lang}` : ''}`; }
+export function getMediaUrl(url?: string) { return !url ? '' : /^https?:\/\//.test(url) ? url : `${API_BASE}${url.startsWith('/') ? '' : '/'}${url}`; }
+export function getSystemHealth() { return request<{
+    status: string;
+}>('/api/demo/status'); }
+export function resetDemoLibrary() { return mutate<void>('/api/demo/reset'); }
+export async function downloadPdf(courseId: string, kind: string) {
+    const response = await fetch(`${API_BASE}/api/study/${courseId}/pdf?kind=${kind}`, { credentials: 'include' });
+    if (!response.ok)
+        throw new ApiError('PDF-ul nu a putut fi exportat. Încearcă din nou.', response.status);
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = `4next-${kind}.pdf`;
+    anchor.click();
+    URL.revokeObjectURL(url);
 }
-
-export async function getSystemHealth(): Promise<any> {
-  try {
-    const res = await fetch(`${API_BASE}/api/demo/status`, { cache: 'no-store' });
-    if (res.ok) return await res.json();
-  } catch {
-    return { status: 'fallback_ready' };
-  }
-}
-
-export async function generateLessonAudio(
-  lessonId: string, 
-  voice: string = 'ro-RO-AlinaNeural', 
-  lang: 'ro' | 'en' = 'ro',
-  rate: string = '+0%'
-): Promise<Lesson> {
-  const res = await fetch(`${API_BASE}/api/lessons/${lessonId}/generate-audio`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ voice, lang, rate }),
-  });
-  if (!res.ok) {
-    throw new Error(`Failed to generate neural audio: ${res.statusText}`);
-  }
-  return await res.json();
-}
-
-export function getMediaUrl(relativeOrAbsoluteUrl?: string): string {
-  if (!relativeOrAbsoluteUrl) return '';
-  if (relativeOrAbsoluteUrl.startsWith('http')) return relativeOrAbsoluteUrl;
-  return `${API_BASE}${relativeOrAbsoluteUrl.startsWith('/') ? '' : '/'}${relativeOrAbsoluteUrl}`;
-}
-
-
+export function errorMessage(error: unknown) { return error instanceof Error ? error.message : 'A apărut o eroare. Încearcă din nou.'; }

@@ -1,88 +1,80 @@
 'use client';
-
-import { useEffect, useState, Suspense, FormEvent } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
-import { AlignLeft, ArrowRight, BookOpen, FileText, LoaderCircle, Upload } from 'lucide-react';
-import { uploadBook, fetchBook } from '@/lib/api';
-
-function UploadContent() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const existingBookId = searchParams.get('book_id');
-  const [mode, setMode] = useState<'file' | 'text'>('file');
-  const [file, setFile] = useState<File | null>(null);
-  const [text, setText] = useState('');
-  const [title, setTitle] = useState('');
-  const [author, setAuthor] = useState('');
-  const [language, setLanguage] = useState<'ro' | 'en'>('ro');
-  const [bookId, setBookId] = useState<string | null>(existingBookId);
-  const [processing, setProcessing] = useState(!!existingBookId);
-  const [dragging, setDragging] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!bookId) return;
-    let cancelled = false;
-    const checkStatus = async () => {
-      try {
-        const book = await fetchBook(bookId);
-        if (cancelled) return;
-        if (book.status === 'ready' && book.course_id) router.push(`/courses/${book.course_id}`);
-        else if (book.status === 'failed') {
-          setError('Materialul nu a putut fi procesat. Încearcă un alt fișier sau lipește textul.');
-          setProcessing(false);
-          setBookId(null);
+import { FormEvent, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { FileUp, Languages, LockKeyhole, ArrowRight, Search, Check } from 'lucide-react';
+import { useAuth } from '@/components/AuthProvider';
+import { errorMessage, request, uploadBook } from '@/lib/api';
+import { ErrorNotice, Loading, LoginRequired, PageHeading } from '@/components/UI';
+interface Inspection {
+    title: string;
+    page_count: number;
+    page_kind: string;
+    language: string;
+    language_supported: boolean;
+    language_confirmation_required: boolean;
+    language_confidence: number;
+    keywords: string[];
+    supported_languages: Record<string, string>;
+}
+export default function Upload() {
+    const { user, loading } = useAuth();
+    const router = useRouter();
+    const formRef = useRef<HTMLFormElement>(null);
+    const sourceRevision = useRef(0);
+    const [mode, setMode] = useState<'file' | 'text'>('file');
+    const [file, setFile] = useState<File>();
+    const [busy, setBusy] = useState(false);
+    const [inspecting, setInspecting] = useState(false);
+    const [error, setError] = useState('');
+    const [preview, setPreview] = useState<Inspection | null>(null);
+    const [selected, setSelected] = useState<string[]>([]);
+    function clear() { sourceRevision.current += 1; setPreview(null); setSelected([]); setError(''); }
+    async function inspect() { const form = formRef.current; if (!form)
+        return; const data = new FormData(form); const source = new FormData(); if (mode === 'file') {
+        if (!file) {
+            setError('Alege un fișier pentru a continua.');
+            return;
         }
-      } catch {
-        if (!cancelled) {
-          setError('Nu putem verifica materialul acum. Încearcă din nou.');
-          setProcessing(false);
-          setBookId(null);
-        }
-      }
-    };
-    checkStatus();
-    const timer = setInterval(checkStatus, 1200);
-    return () => { cancelled = true; clearInterval(timer); };
-  }, [bookId, router]);
-
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (mode === 'file' && !file) { setError('Alege un fișier pentru a începe.'); return; }
-    if (mode === 'text' && text.trim().length < 50) { setError('Adaugă cel puțin 50 de caractere, ca să avem suficient context.'); return; }
-    if (mode === 'file' && file && !/\.(pdf|epub|docx|doc|txt|md)$/i.test(file.name)) { setError('Alege un fișier PDF, EPUB, DOCX, DOC, TXT sau MD.'); return; }
-    setError(null);
-    setProcessing(true);
-    try {
-      const result = await uploadBook({ file: mode === 'file' ? file || undefined : undefined, text: mode === 'text' ? text : undefined, title: title.trim() || undefined, author: author.trim() || undefined, language });
-      if (result.course_id) router.push(`/courses/${result.course_id}`);
-      else setBookId(result.book_id);
-    } catch (error: unknown) {
-      setError(error instanceof Error ? error.message : 'Materialul nu a putut fi încărcat. Încearcă din nou.');
-      setProcessing(false);
+        source.append('file', file);
     }
-  }
-
-  return (
-    <div className="study-shell upload-page">
-      <div className="upload-heading"><span className="eyebrow">ÎNCEPE CU CE AI DEJA</span><h1>Din material, în înțelegere.</h1><p>Adaugă un curs, o carte sau notițele tale. Le organizăm în lecții, flashcarduri și întrebări, ca să ai de unde începe.</p></div>
-      <div className="upload-layout">
-        {processing ? <div className="upload-status" role="status"><LoaderCircle size={32} className="animate-spin" /><h2>Pregătim spațiu pentru ideile tale.</h2><p>Organizăm materialul în lecții. Vei ajunge direct la curs când este pregătit; fișierele audio și video se pot genera în continuare.</p></div> :
-          <form onSubmit={handleSubmit} className="upload-form">
-            <div className="input-tabs" role="group" aria-label="Cum adaugi materialul"><button type="button" aria-pressed={mode === 'file'} onClick={() => { setMode('file'); setError(null); }}><FileText size={16} />Încarcă un fișier</button><button type="button" aria-pressed={mode === 'text'} onClick={() => { setMode('text'); setError(null); }}><AlignLeft size={16} />Lipește text</button></div>
-            {error && <div className="upload-error" role="alert">{error}</div>}
-            {mode === 'file' ? <label className={`file-drop ${dragging ? 'dragging' : ''}`} onDragOver={event => { event.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)} onDrop={event => { event.preventDefault(); setDragging(false); setFile(event.dataTransfer.files[0] || null); setError(null); }}><Upload size={30} strokeWidth={1.4} /><strong>{file ? file.name : 'Trage materialul aici sau alege un fișier'}</strong><span>{file ? `${(file.size / 1024 / 1024).toFixed(1)} MB · Poți alege alt fișier` : 'PDF, EPUB, DOCX, DOC, TXT sau MD'}</span><input type="file" aria-label="Alege materialul de studiu" accept=".pdf,.epub,.docx,.doc,.txt,.md" onChange={event => { setFile(event.target.files?.[0] || null); setError(null); }} /></label> : <label className="form-field" htmlFor="material-text">Textul tău<textarea id="material-text" value={text} onChange={event => setText(event.target.value)} placeholder="Lipește aici un capitol, notițele de la curs sau un articol…" required minLength={50} /><small>Cel puțin 50 de caractere. Cu mai mult context, ideile se leagă mai bine.</small></label>}
-            <div className="form-row"><label className="form-field" htmlFor="material-title">Cum se numește materialul? <small>Opțional</small><input id="material-title" value={title} onChange={event => setTitle(event.target.value)} placeholder="De exemplu: Biologie — capitolul 3" /></label><label className="form-field" htmlFor="material-author">Autor sau sursă <small>Opțional</small><input id="material-author" value={author} onChange={event => setAuthor(event.target.value)} placeholder="De exemplu: notițe de la curs" /></label></div>
-            <fieldset className="audio-language"><legend>Limba explicațiilor audio</legend><label><input type="radio" name="language" checked={language === 'ro'} onChange={() => setLanguage('ro')} />Română</label><label><input type="radio" name="language" checked={language === 'en'} onChange={() => setLanguage('en')} />Engleză</label></fieldset>
-            <button type="submit" className="study-button primary form-submit">Pregătește materialul de studiu <ArrowRight size={17} /></button>
-          </form>}
-        <aside className="upload-aside"><span className="eyebrow">MAI MULTE FELURI DE A ÎNȚELEGE</span><h2>Un material. Multe perspective.</h2><ol><li><h3>Găsește firul ideilor</h3><p>Parcurge explicațiile și schemele, lecție cu lecție.</p></li><li><h3>Pune-ți memoria la treabă</h3><p>Revino la concepte prin flashcarduri și verifică-te cu un quiz.</p></li><li><h3>Ia învățarea cu tine</h3><p>Ascultă lecțiile audio sau descarcă ghidul de studiu.</p></li></ol><div className="aside-note"><BookOpen size={23} strokeWidth={1.4} /><p>Poți începe cu un singur capitol. Uneori, un pas mic e tot ce îți trebuie.</p></div></aside>
-      </div>
-    </div>
-  );
+    else {
+        const text = String(data.get('text') || '');
+        if (text.trim().length < 80) {
+            setError('Adaugă cel puțin 80 de caractere pentru a putea analiza materialul.');
+            return;
+        }
+        source.append('text', text);
+    } const revision = sourceRevision.current; setInspecting(true); setError(''); try {
+        const result = await request<Inspection>('/api/books/inspect', { method: 'POST', body: source });
+        if (revision === sourceRevision.current) { setPreview(result); setSelected([]); }
+    }
+    catch (e) {
+        setError(errorMessage(e));
+    }
+    finally {
+        setInspecting(false);
+    } }
+    async function submit(event: FormEvent<HTMLFormElement>) { event.preventDefault(); if (!preview) {
+        await inspect();
+        return;
+    } if (!preview.language_supported && !preview.language_confirmation_required) {
+        setError('Limba documentului nu este încă suportată.');
+        return;
+    } const data = new FormData(event.currentTarget); setBusy(true); setError(''); try {
+        const result = await uploadBook({ file: mode === 'file' ? file : undefined, text: mode === 'text' ? String(data.get('text')) : undefined, title: String(data.get('title') || ''), author: String(data.get('author') || ''), visibility: String(data.get('visibility')), study_minutes: Number(data.get('study_minutes')), depth: String(data.get('depth')), focus_keywords: JSON.stringify(selected), language: preview.language_confirmation_required ? String(data.get('language') || '') : undefined });
+        if (!result.course_id)
+            throw new Error('Documentul a fost primit, dar cursul nu este încă disponibil. Verifică biblioteca.');
+        router.push(`/courses/${result.course_id}`);
+    }
+    catch (e) {
+        setError(errorMessage(e));
+    }
+    finally {
+        setBusy(false);
+    } }
+    if (loading)
+        return <div className="page-shell"><Loading /></div>;
+    if (!user)
+        return <div className="page-shell"><LoginRequired /></div>;
+    return <div className="page-shell upload-page"><PageHeading eyebrow="UN MATERIAL NOU" title="De la pagini la idei clare." text="Adaugă sursa. Alegem conceptele, apoi ritmul în care le aprofundăm."/><form ref={formRef} className="upload-grid" onSubmit={submit}><section className="panel"><div className="step-label">01 <span>MATERIALUL TĂU</span></div><div className="segmented"><button type="button" className={mode === 'file' ? 'active' : ''} onClick={() => { setMode('file'); clear(); }}>Încarcă un fișier</button><button type="button" className={mode === 'text' ? 'active' : ''} onClick={() => { setMode('text'); clear(); }}>Adaugă text</button></div>{mode === 'file' ? <label className="file-drop"><FileUp size={35} strokeWidth={1.2}/><strong>{file ? file.name : 'Alege documentul tău'}</strong><span>{file ? `${(file.size / 1024 / 1024).toFixed(1)} MB · apasă pentru a schimba` : 'PDF, EPUB, DOCX, TXT sau MD'}</span><input aria-label="Fișier de studiu" type="file" accept=".pdf,.epub,.docx,.txt,.md" onChange={e => { setFile(e.target.files?.[0]); clear(); }}/></label> : <label className="form-stack">Textul materialului<textarea name="text" rows={9} minLength={80} required placeholder="Lipește aici notițele sau conținutul lecției…" onChange={clear}/></label>}<div className="form-stack"><label>Titlu <span className="muted">(opțional)</span><input name="title" maxLength={200} placeholder="ex. Sistemul nervos — recapitulare"/></label><label>Autor / sursă <span className="muted">(opțional)</span><input name="author" maxLength={150} placeholder="Autorul sau sursa documentului"/></label></div><div className="notice"><Languages size={20}/><span>Detectăm limba sursei. Lecțiile, quizurile și explicațiile rămân în aceeași limbă.</span></div><button className="button secondary" type="button" onClick={inspect} disabled={inspecting || busy}><Search size={16}/>{inspecting ? 'Analizăm sursa…' : preview ? 'Analizează din nou' : 'Analizează limba și conceptele'}</button>{preview && <section style={{ marginTop: 26 }}><div className="row spaced"><span className="eyebrow">SURSA A FOST ANALIZATĂ</span><Check size={18}/></div><p className="small muted" style={{ marginTop: 12 }}>{preview.page_count} {preview.page_kind === 'page' ? 'pagini' : 'secțiuni'} · {preview.language_supported ? `Limbă: ${preview.supported_languages[preview.language] || preview.language.toUpperCase()}` : 'Limba necesită verificare'}</p>{preview.language_confirmation_required ? <label className="form-stack" style={{ marginTop: 18 }}>Confirmă limba documentului<select name="language" required defaultValue=""><option value="" disabled>Alege limba</option>{Object.entries(preview.supported_languages).map(([code, label]) => <option key={code} value={code}>{label}</option>)}</select><small>Detectarea nu este suficient de sigură. Confirmă limba originală, fără traducere.</small></label> : !preview.language_supported ? <ErrorNotice message="Această limbă nu este încă suportată. Nu vom traduce automat materialul."/> : null}<h3 style={{ marginTop: 22, marginBottom: 9 }}>Pe ce idei ne concentrăm?</h3><p className="small muted" style={{ marginBottom: 14 }}>Alege până la 10 concepte din sursă sau lasă toate ideile incluse.</p><div className="keyword-list" lang={preview.language}>{preview.keywords.map(term => <button type="button" key={term} aria-pressed={selected.includes(term)} onClick={() => setSelected(items => items.includes(term) ? items.filter(item => item !== term) : items.length < 10 ? [...items, term] : items)} style={selected.includes(term) ? { background: 'var(--green)', color: 'white', borderColor: 'var(--green)' } : undefined}>{selected.includes(term) && '✓ '}{term}</button>)}</div><p className="source-legend">{selected.length ? `${selected.length} concepte selectate pentru aprofundare` : 'Vom folosi întregul material.'}</p></section>}</section><aside className="panel"><div className="step-label">02 <span>ÎN RITMUL TĂU</span></div><div className="form-stack"><label>Timp pentru o sesiune<select name="study_minutes" defaultValue={user.study_minutes || 20}>{[5, 10, 15, 20, 30, 45, 60, 90, 120].map(value => <option key={value} value={value}>{value} minute</option>)}</select></label><label>Cât de mult aprofundăm?<select name="depth" defaultValue={user.depth || 'standard'}><option value="brief">Esențial — ideile de bază</option><option value="standard">Echilibrat — explicații și exemple</option><option value="deep">În profunzime — mai mult context</option></select></label><label>Cine poate vedea materialul?<select name="visibility" defaultValue="private"><option value="private">Privat — doar eu și clasele alese</option><option value="public">Public — în biblioteca comunității</option></select></label><p className="small muted inline"><LockKeyhole size={17}/>Publică numai materiale pe care ai dreptul să le distribui.</p>{error && <ErrorNotice message={error}/>}<button className="button primary" disabled={busy || inspecting || !!(preview && !preview.language_supported && !preview.language_confirmation_required)}>{busy ? 'Pregătim spațiul de studiu…' : preview ? 'Creează spațiul de studiu' : 'Analizează materialul'}{!busy && <ArrowRight size={17}/>}</button><p className="small muted">{preview ? 'Ai verificat sursa. Poți crea acum materialele de studiu. Procesarea poate dura.' : 'Mai întâi analizăm sursa, apoi alegi conceptele înainte de generare.'}</p></div></aside></form></div>;
 }
-
-export default function UploadPage() {
-  return <Suspense fallback={<div className="study-shell upload-page"><div className="course-skeleton animate-pulse" aria-label="Se încarcă formularul" /></div>}><UploadContent /></Suspense>;
-}
-

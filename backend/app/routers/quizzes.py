@@ -1,20 +1,29 @@
 import json
+import uuid
 from typing import Dict, Any, List
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from app.database import get_db_connection
+from app.security import check_course_access, optional_user
+from app.routers.courses import parse_json_fields
 from app.schemas import QuizSubmissionSchema
 
 router = APIRouter(prefix="/api/quizzes", tags=["Quizzes"])
 
 @router.get("/course/{course_id}")
-def get_course_quizzes(course_id: str):
+def get_course_quizzes(course_id: str,user: dict | None=Depends(optional_user)):
     conn = get_db_connection()
+    try:
+        check_course_access(conn,course_id,user)
+    except Exception:
+        conn.close()
+        raise
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM quizzes WHERE course_id = ?", (course_id,))
     rows = cursor.fetchall()
     quizzes = []
     for r in rows:
         q = dict(r)
+        parse_json_fields(q,["source_citations"])
         if isinstance(q.get("options"), str):
             try:
                 q["options"] = json.loads(q["options"])
@@ -25,8 +34,13 @@ def get_course_quizzes(course_id: str):
     return quizzes
 
 @router.post("/course/{course_id}/submit")
-def submit_course_quiz(course_id: str, submission: QuizSubmissionSchema):
+def submit_course_quiz(course_id: str, submission: QuizSubmissionSchema,user: dict | None=Depends(optional_user)):
     conn = get_db_connection()
+    try:
+        check_course_access(conn,course_id,user)
+    except Exception:
+        conn.close()
+        raise
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM quizzes WHERE course_id = ?", (course_id,))
     rows = cursor.fetchall()
@@ -61,6 +75,11 @@ def submit_course_quiz(course_id: str, submission: QuizSubmissionSchema):
 
     percentage = round((correct_count / total) * 100, 1) if total > 0 else 0
     passed = percentage >= 70.0
+
+    if user:
+        cursor.execute("INSERT INTO quiz_attempts(id,user_id,course_id,score,total) VALUES(?,?,?,?,?)",
+            ("attempt-"+uuid.uuid4().hex,user["id"],course_id,correct_count,total))
+        conn.commit()
 
     conn.close()
     return {

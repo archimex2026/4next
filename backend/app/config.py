@@ -5,7 +5,6 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent.parent
 UPLOAD_DIR = BASE_DIR / "uploads"
 MEDIA_DIR = BASE_DIR / "media"
-DB_PATH = BASE_DIR / "book2course.db"
 
 # Ensure dirs exist
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
@@ -23,12 +22,20 @@ if env_file.exists():
             line = line.strip()
             if line and not line.startswith("#") and "=" in line:
                 k, v = line.split("=", 1)
-                os.environ[k.strip()] = v.strip()
+                os.environ.setdefault(k.strip(), v.strip())
 
 # Settings
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+DB_PATH = Path(os.getenv("DATABASE_PATH", str(BASE_DIR / "book2course.db"))).expanduser().resolve()
+DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 APP_PORT = int(os.getenv("PORT", "8000"))
 DATABASE_URL = f"sqlite:///{DB_PATH}"
+ALLOWED_ORIGINS = [value.strip().rstrip("/") for value in os.getenv(
+    "ALLOWED_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000"
+).split(",") if value.strip() and value.strip() != "*"]
+COOKIE_SECURE = os.getenv("COOKIE_SECURE", "false").lower() == "true"
+SESSION_COOKIE_NAME = "four_next_session"
+SESSION_MAX_AGE = 60 * 60 * 24 * 14
 
 # Detect FFmpeg executable
 FFMPEG_EXE = "ffmpeg"

@@ -1,6 +1,6 @@
 # Direcția produsului 4Next
 
-Acest document păstrează ideile de produs discutate și le transformă în cerințe de referință pentru implementare. Este o direcție de lucru, nu o promisiune că toate funcționalitățile intră în prima versiune.
+Acest document păstrează direcția de produs. Lista detaliată și starea cerințelor din cea mai recentă sesiune sunt în [brainstorming_implementare.md](brainstorming_implementare.md). Brainstormingul a mutat conturile, publicarea și preferințele de bază în funcțiile curente; personalizarea adaptivă avansată rămâne ulterioară.
 
 ## Principii pentru AI-ul de studiu
 
@@ -30,19 +30,19 @@ O integrare viitoare ar putea identifica materia, nivelul/clasa și examenul, ap
 
 Această etapă depinde de alegerea examenelor și nivelurilor școlare vizate și de găsirea unor surse care pot fi folosite legal și fiabil. Până atunci, încărcarea de către elev a materialelor proprii rămâne fluxul de bază.
 
-## Conturi și personalizare — etapă ulterioară
+## Conturi și personalizare
 
-După ce fluxul principal de studiu funcționează bine, contul ar putea începe cu câteva întrebări de personalizare, precum nivelul/clasa, obiectivul sau examenul, data examenului, nivelul perceput și timpul disponibil pentru studiu. Răspunsurile ar putea adapta planul și explicațiile.
+Contul salvează documentele personale și preferințele de bază: timpul disponibil, profunzimea și obiectivul de examen. La încărcare, utilizatorul poate ajusta timpul și profunzimea și poate alege conceptele care îl interesează. Chestionare mai ample despre clasă, data examenului și nivelul perceput pot extinde ulterior această bază.
 
-Această idee este amânată față de funcțiile de bază. Profilul trebuie să poată fi modificat, iar colectarea datelor să rămână minimă și explicată clar, cu atenție specială dacă produsul este folosit de minori.
+Profilul trebuie să poată fi modificat, iar colectarea datelor să rămână minimă și explicată clar, cu atenție specială dacă produsul este folosit de minori.
 
 ## Ordine de lucru propusă
 
-1. Aplică regula limbii documentului și stilul pedagogic în toate generatoarele de materiale.
-2. Construiește chatul ancorat în document, cu trimiteri la sursă și comportament explicit pentru informațiile absente.
-3. Alege examenele/nivelurile vizate și cercetează surse oficiale, drepturile de utilizare și felul în care se identifică programa.
-4. Evaluează integrarea programei și pregătirea ghidată pentru examene pe baza surselor confirmate.
-5. Adaugă conturi și personalizare după validarea fluxului de studiu de bază.
+1. Conturi și acces privat implicit la documente, cu publicare și partajare explicită în clase.
+2. Regula limbii documentului, stil pedagogic, preferințe de studiu și chat ancorat în sursă.
+3. Evidențieri, export PDF și descoperirea materialelor/conceptelor înrudite.
+4. Alege examenele/nivelurile vizate și cercetează surse oficiale, drepturile de utilizare și felul în care se identifică programa.
+5. Evaluează integrarea programei și personalizarea adaptivă pe baza surselor și rezultatelor confirmate.
 
 Ordinea este o propunere de produs și poate fi ajustată după discuția echipei și cerințele hackathonului.
 

@@ -1,383 +1,209 @@
-import os
-import sys
-import shutil
-import uuid
-import json
+"""Private-by-default source ingestion with bounded extraction and grounded study output."""
 import asyncio
+import json
+import uuid
+from contextlib import closing
 from pathlib import Path
-from typing import Optional, List, Dict, Any
-from concurrent.futures import ThreadPoolExecutor
-from fastapi import APIRouter, UploadFile, File, Form, HTTPException, BackgroundTasks
-from app.config import UPLOAD_DIR, MEDIA_DIR
+from typing import Optional
+from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException
+from app.config import UPLOAD_DIR
 from app.database import get_db_connection
-from app.services.extractor import extract_text_from_file
-from app.services.ai_analyzer import build_content_aware_curriculum
-from app.services.audio_generator import (
-    generate_audio_lesson,
-    prepare_instant_lesson_audio,
-    create_instant_placeholder_mp3
-)
-from app.services.video_generator import generate_video_lesson
-
-if sys.stdout and hasattr(sys.stdout, 'reconfigure'):
-    try:
-        sys.stdout.reconfigure(encoding='utf-8', errors='replace')
-        sys.stderr.reconfigure(encoding='utf-8', errors='replace')
-    except Exception:
-        pass
-
-def safe_log(msg: str):
-    try:
-        print(msg)
-    except Exception:
-        clean = msg.encode('ascii', errors='replace').decode('ascii')
-        print(clean)
+from app.security import optional_user, require_user, check_book_access, can_read_book
+from app.services.extractor import extract_document, ExtractionError, MAX_TEXT_CHARACTERS
+from app.services.language import detect_document_language, resolve_language, LanguageAmbiguous, SUPPORTED_LANGUAGES
+from app.services.ai_analyzer import analyze_book_with_gemini
+from app.services.study_ai import extract_keywords, fold
+from app.generation_limits import consume_budget, generation_slot
 
 router = APIRouter(prefix="/api/books", tags=["Books"])
+MAX_UPLOAD_BYTES = 15 * 1024 * 1024
+ALLOWED_EXTENSIONS = {".pdf", ".epub", ".docx", ".txt", ".md"}
 
-def _synthesize_single_lesson_media(item: Dict[str, Any]):
-    """
-    Worker task executed in parallel thread:
-    Generates natural voice TTS in RO and EN, and renders the tutorial video.
-    """
-    lsn_id = item["id"]
-    try:
-        ro_url, ro_dur, ro_scenes = generate_audio_lesson(
-            lesson_id=lsn_id,
-            title=item["title"],
-            summary=item["short_summary"],
-            key_ideas=item["key_ideas"],
-            examples=item["examples"],
-            long_explanation=item.get("long_explanation", ""),
-            practical_insights=item.get("practical_insights", []),
-            action_items=item.get("action_items", []),
-            lang="ro",
-            return_details=True
-        )
-        try:
-            conn = get_db_connection()
-            cur = conn.cursor()
-            mins = max(1, int(round(ro_dur / 60)))
-            cur.execute("""
-            UPDATE lessons 
-            SET audio_url_ro = ?, audio_url = ?, duration = ?, transcript_ro = ? 
-            WHERE id = ?
-            """, (ro_url, ro_url, f"{mins} mins", json.dumps(ro_scenes), lsn_id))
-            conn.commit()
-            conn.close()
-        except Exception as db_e:
-            safe_log(f"Notice updating lesson {lsn_id} DB: {db_e}")
-    except Exception as e:
-        safe_log(f"Notice: Background RO audio for {lsn_id}: {e}")
 
+async def receive_source(file, text):
+    """Only generated UUID names reach disk; all failure paths remove their temporary file."""
+    if bool(text and text.strip()) == bool(file and file.filename):
+        raise HTTPException(400, "Încarcă un fișier sau introdu text, folosind o singură sursă.")
+    path = None
     try:
-        generate_audio_lesson(
-            lesson_id=lsn_id,
-            title=item["title"],
-            summary=item["short_summary"],
-            key_ideas=item["key_ideas"],
-            examples=item["examples"],
-            long_explanation=item.get("long_explanation", ""),
-            practical_insights=item.get("practical_insights", []),
-            action_items=item.get("action_items", []),
-            lang="en"
-        )
-    except Exception as e:
-        safe_log(f"Notice: Background EN audio for {lsn_id}: {e}")
+        if text and text.strip():
+            if len(text) > MAX_TEXT_CHARACTERS:
+                raise HTTPException(413, "Textul depășește limita de 1.000.000 de caractere.")
+            extension, original_name = ".txt", "notițe.txt"
+            path = UPLOAD_DIR / f"{uuid.uuid4().hex}{extension}"
+            path.write_text(text.strip(), encoding="utf-8")
+            size = path.stat().st_size
+        else:
+            original_name = Path(file.filename.replace("\\", "/")).name[:200]
+            extension = Path(original_name).suffix.lower()
+            if extension not in ALLOWED_EXTENSIONS:
+                raise HTTPException(400, "Format neacceptat. Folosește PDF, EPUB, DOCX, TXT sau MD.")
+            path = UPLOAD_DIR / f"{uuid.uuid4().hex}{extension}"
+            size = 0
+            with path.open("wb") as stream:
+                while chunk := await file.read(1024 * 1024):
+                    size += len(chunk)
+                    if size > MAX_UPLOAD_BYTES:
+                        raise HTTPException(413, "Fișierul depășește limita de 15 MB.")
+                    stream.write(chunk)
+        document = await asyncio.to_thread(extract_document, path, extension)
+        return path, original_name, extension, size, document
+    except ExtractionError as exc:
+        if path:
+            path.unlink(missing_ok=True)
+        raise HTTPException(422, str(exc)) from exc
+    except Exception:
+        if path:
+            path.unlink(missing_ok=True)
+        raise
 
-    try:
-        primary_audio = f"/media/audio/{lsn_id}_{item['primary_lang']}.mp3"
-        generate_video_lesson(
-            lesson_id=lsn_id,
-            lesson_title=item["title"],
-            course_title=item["course_title"],
-            summary=item["short_summary"],
-            key_ideas=item["key_ideas"],
-            examples=item["examples"],
-            action_items=item["action_items"],
-            mermaid_diagram=item.get("mermaid_diagram", ""),
-            audio_path=primary_audio
-        )
-    except Exception as e:
-        safe_log(f"Notice: Background video for {lsn_id}: {e}")
 
-def synthesize_media_background(course_id: str, lesson_items: List[Dict[str, Any]]):
-    """
-    Parallel background worker for media synthesis. Runs without blocking API requests.
-    """
-    safe_log(f"Starting background media synthesis for course {course_id} ({len(lesson_items)} lessons)...")
+def _language_error(exc):
+    if isinstance(exc, LanguageAmbiguous):
+        detection = exc.detection
+        return HTTPException(422, detail={"code": "language_confirmation_required", "message": str(exc),
+            "detected_language": detection["language"], "confidence": detection["confidence"],
+            "candidates": detection["candidates"], "supported_languages": SUPPORTED_LANGUAGES})
+    return HTTPException(422, str(exc))
+
+
+@router.post("/inspect")
+async def inspect_source(file: Optional[UploadFile] = File(None), text: Optional[str] = Form(None), user=Depends(require_user)):
+    consume_budget(user["id"], "inspect")
+    path, original_name, extension, size, document = await receive_source(file, text)
     try:
-        with ThreadPoolExecutor(max_workers=3) as executor:
-            list(executor.map(_synthesize_single_lesson_media, lesson_items))
-        safe_log(f"Media synthesis finished for course {course_id}!")
-    except Exception as e:
-        safe_log(f"Error in background media synthesis: {e}")
+        detection = await asyncio.to_thread(detect_document_language, document["text"])
+        return {"title": document["title"] or Path(original_name).stem, "file_name": original_name,
+            "page_count": document["page_count"], "page_kind": document["page_kind"], "file_size": size,
+            "detected_language": detection["language"], "language": detection["language"],
+            "language_confidence": detection["confidence"], "language_confirmation_required": detection["ambiguous"],
+            "language_supported": detection["language"] in SUPPORTED_LANGUAGES,
+            "keywords": await asyncio.to_thread(extract_keywords, document["text"]), "supported_languages": SUPPORTED_LANGUAGES}
+    finally:
+        path.unlink(missing_ok=True)
+
 
 @router.post("/upload")
-async def upload_book(
-    background_tasks: BackgroundTasks,
-    file: Optional[UploadFile] = File(None),
-    text: Optional[str] = Form(None),
-    title: Optional[str] = Form(None),
-    author: Optional[str] = Form(None),
-    language: Optional[str] = Form("ro")
-):
-    """
-    Instant upload & course creation endpoint.
-    Processes 100% of the book text into a complete structured course in < 300ms,
-    returning course_id immediately with status 'ready'.
-    Audio and video synthesis proceed concurrently in the background.
-    """
-    selected_language = "ro" if language and language.lower().startswith("ro") else "en"
-    book_id = f"book-{uuid.uuid4().hex[:8]}"
+async def upload_book(file: Optional[UploadFile] = File(None), text: Optional[str] = Form(None),
+    title: Optional[str] = Form(None), author: Optional[str] = Form(None), language: Optional[str] = Form(None),
+    visibility: str = Form("private"), study_minutes: int = Form(20), depth: str = Form("standard"),
+    focus_keywords: Optional[str] = Form(None), user=Depends(require_user)):
+    if visibility not in {"private", "public"}:
+        raise HTTPException(422, "Vizibilitatea trebuie să fie private sau public.")
+    if not 5 <= study_minutes <= 120 or depth not in {"brief", "standard", "deep"}:
+        raise HTTPException(422, "Alege între 5 și 120 de minute și profunzimea brief, standard sau deep.")
+    if title and len(title.strip()) > 200 or author and len(author.strip()) > 150:
+        raise HTTPException(422, "Titlul poate avea maximum 200 de caractere, iar autorul 150.")
+    try:
+        focus = json.loads(focus_keywords) if focus_keywords and focus_keywords.lstrip().startswith("[") else [v.strip() for v in (focus_keywords or "").split(",") if v.strip()]
+        if not isinstance(focus, list) or len(focus) > 10 or any(not isinstance(term, str) or not 2 <= len(term) <= 80 for term in focus):
+            raise ValueError()
+    except (ValueError, TypeError):
+        raise HTTPException(422, "Alege maximum 10 cuvinte cheie (listă JSON sau separate prin virgulă).")
 
-    # Step 1: Save payload
-    if text and text.strip():
-        raw_content = text.strip()
-        display_title = title.strip() if title and title.strip() else f"Manual Text Analysis {book_id[-4:]}"
-        display_author = author.strip() if author and author.strip() else "User Uploaded Content"
-        saved_filename = f"{book_id}_pasted_text.txt"
-        dest_path = UPLOAD_DIR / saved_filename
-        with open(dest_path, "w", encoding="utf-8") as f:
-            f.write(raw_content)
-        file_size = len(raw_content.encode("utf-8"))
-        file_ext = ".txt"
-        orig_name = "pasted_text.txt"
-    elif file and file.filename:
-        file_ext = Path(file.filename).suffix.lower()
-        allowed = [".pdf", ".epub", ".docx", ".doc", ".txt", ".md"]
-        if file_ext not in allowed:
-            raise HTTPException(status_code=400, detail=f"Format neacceptat. Vă rugăm încărcați {', '.join(allowed)}")
+    path, original_name, extension, size, document = await receive_source(file, text)
+    saved = False
+    try:
+        try:
+            detection = await asyncio.to_thread(resolve_language, document["text"], language)
+        except ValueError as exc:
+            raise _language_error(exc) from exc
+        if any(fold(term) not in fold(document["text"]) for term in focus):
+            raise HTTPException(422, "Cuvintele cheie selectate trebuie să apară în material.")
+        selected_language = detection["language"]
+        labels_title = {"ro": "Notițele mele", "en": "My notes", "fr": "Mes notes", "de": "Meine Notizen", "es": "Mis apuntes", "it": "I miei appunti"}
+        display_title = (title or "").strip() or document["title"] or (Path(original_name).stem if file else labels_title[selected_language])
+        display_author = (author or "").strip()
+        with generation_slot(user["id"], "upload"):
+            curriculum = await analyze_book_with_gemini(display_title, display_author, document["text"],
+                language=selected_language, source_pages=document["pages"], study_minutes=study_minutes, depth=depth, focus_keywords=focus)
+        book_id, course_id = f"book-{uuid.uuid4().hex}", f"course-{uuid.uuid4().hex}"
+        levels = curriculum["levels"]
+        lessons = [lesson for level in levels for lesson in level["lessons"]]
+        palette = ["#365D4C", "#7B6249", "#5A6D83", "#85665F", "#687550"]
+        with closing(get_db_connection()) as conn:
+            with conn:
+                conn.execute("""INSERT INTO books (id,title,author,file_path,file_name,file_type,file_size,cover_color,status,
+                    page_count,language,owner_id,visibility,source_text,source_pages,keywords,focus_keywords,study_minutes,depth,generation_mode,summary)
+                    VALUES (?,?,?,?,?,?,?,?,'ready',?,?,?,?,?,?,?,?,?,?,?,?)""",
+                    (book_id, display_title, display_author, str(path), original_name, extension.lstrip("."), size,
+                     palette[int(book_id[-2:], 16) % len(palette)], document["page_count"], selected_language, user["id"], visibility,
+                     document["text"], json.dumps(document["pages"], ensure_ascii=False), json.dumps(curriculum["keywords"], ensure_ascii=False),
+                     json.dumps(focus, ensure_ascii=False), study_minutes, depth, curriculum["generation_mode"], curriculum["overview"]))
+                conn.execute("""INSERT INTO courses (id,book_id,title,subtitle,overview,target_audience,estimated_duration,
+                    level_count,lesson_count,quiz_count,flashcard_count,language) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
+                    (course_id, book_id, curriculum["title"], curriculum["subtitle"], curriculum["overview"], curriculum["target_audience"],
+                     curriculum["estimated_duration"], len(levels), len(lessons), len(curriculum["quizzes"]), len(curriculum["flashcards"]), selected_language))
+                for level_index, level in enumerate(levels):
+                    level_id = f"lvl-{uuid.uuid4().hex}"
+                    conn.execute("INSERT INTO levels (id,course_id,level_number,title,description) VALUES (?,?,?,?,?)",
+                        (level_id, course_id, level_index + 1, level["title"], level["description"]))
+                    for lesson_index, lesson in enumerate(level["lessons"]):
+                        conn.execute("""INSERT INTO lessons (id,course_id,level_id,order_index,title,short_summary,long_explanation,
+                            key_ideas,practical_insights,examples,action_items,mermaid_diagram,duration,source_citations,transcript)
+                            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                            (f"lsn-{uuid.uuid4().hex}", course_id, level_id, lesson_index + 1, lesson["title"], lesson["short_summary"],
+                             lesson["long_explanation"], json.dumps(lesson.get("key_ideas", []), ensure_ascii=False),
+                             json.dumps(lesson.get("practical_insights", []), ensure_ascii=False), json.dumps(lesson.get("examples", []), ensure_ascii=False),
+                             json.dumps(lesson.get("action_items", []), ensure_ascii=False), "", lesson.get("duration") or f"{max(1, study_minutes // len(lessons))} min",
+                             json.dumps(lesson["source_citations"], ensure_ascii=False), "[]"))
+                for card in curriculum["flashcards"]:
+                    conn.execute("INSERT INTO flashcards (id,course_id,question,answer,category,source_citations) VALUES (?,?,?,?,?,?)",
+                        (f"fc-{uuid.uuid4().hex}", course_id, card["question"], card["answer"], card["category"], json.dumps(card["source_citations"], ensure_ascii=False)))
+                for quiz in curriculum["quizzes"]:
+                    conn.execute("INSERT INTO quizzes (id,course_id,question,options,correct_index,explanation,source_citations) VALUES (?,?,?,?,?,?,?)",
+                        (f"qz-{uuid.uuid4().hex}", course_id, quiz["question"], json.dumps(quiz["options"], ensure_ascii=False), quiz["correct_index"],
+                         quiz["explanation"], json.dumps(quiz["source_citations"], ensure_ascii=False)))
+        saved = True
+        return {"status": "ready", "book_id": book_id, "course_id": course_id, "title": display_title, "author": display_author,
+            "language": selected_language, "detected_language": detection["language"], "language_confidence": detection["confidence"],
+            "visibility": visibility, "study_minutes": study_minutes, "depth": depth, "keywords": curriculum["keywords"],
+            "focus_keywords": focus,
+            "generation_mode": curriculum["generation_mode"], "page_kind": document["page_kind"],
+            "levels_count": len(levels), "lessons_count": len(lessons), "quizzes_count": len(curriculum["quizzes"]),
+            "flashcards_count": len(curriculum["flashcards"])}
+    finally:
+        if not saved:
+            path.unlink(missing_ok=True)
 
-        saved_filename = f"{book_id}_{file.filename}"
-        dest_path = UPLOAD_DIR / saved_filename
-        with open(dest_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
-        file_size = dest_path.stat().st_size
-        orig_name = file.filename
-        display_title = title if title and title.strip() else Path(file.filename).stem.replace("_", " ").title()
-        display_author = author if author and author.strip() else "Recognized Author"
-    else:
-        raise HTTPException(status_code=400, detail="Vă rugăm să încărcați un fișier sau să introduceți text.")
 
-    # Step 2: Extract 100% of the text
-    extracted_text, page_count, title_guess = extract_text_from_file(dest_path, file_ext)
-    if not title or not title.strip():
-        display_title = title_guess or display_title
-
-    # Step 3: Instant Curriculum Generation
-    curriculum = build_content_aware_curriculum(display_title, display_author, extracted_text)
-
-    course_id = f"course-{uuid.uuid4().hex[:8]}"
-    total_lessons = sum(len(lvl.get("lessons", [])) for lvl in curriculum.get("levels", []))
-    total_quizzes = len(curriculum.get("quizzes", []))
-    total_cards = len(curriculum.get("flashcards", []))
-
-    color_palette = ["#0A66C2", "#057642", "#7C3AED", "#EA580C", "#0891B2"]
-    cover_color = color_palette[hash(display_title) % len(color_palette)]
-
-    conn = get_db_connection()
-    cursor = conn.cursor()
-
-    # Insert book immediately with status 'ready'
-    cursor.execute("""
-    INSERT INTO books (id, title, author, file_path, file_name, file_type, file_size, cover_color, status, page_count, language)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'ready', ?, ?)
-    """, (book_id, display_title, display_author, str(dest_path), orig_name, file_ext.lstrip("."), file_size, cover_color, page_count, selected_language))
-
-    # Insert course
-    cursor.execute("""
-    INSERT INTO courses (id, book_id, title, subtitle, overview, target_audience, estimated_duration, level_count, lesson_count, quiz_count, flashcard_count)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """, (
-        course_id,
-        book_id,
-        curriculum.get("title", f"Mastery of {display_title}"),
-        curriculum.get("subtitle", "Comprehensive Video & Audio Course"),
-        curriculum.get("overview", "A structured micro-learning course extracted from the book."),
-        curriculum.get("target_audience", "Ambitious Professionals & Practitioners"),
-        curriculum.get("estimated_duration", "18 mins"),
-        len(curriculum.get("levels", [])),
-        total_lessons,
-        total_quizzes,
-        total_cards
-    ))
-
-    lesson_items_for_media = []
-
-    # Insert levels and lessons with instant audio setup
-    for lvl_idx, lvl in enumerate(curriculum.get("levels", [])):
-        lvl_id = f"lvl-{uuid.uuid4().hex[:8]}"
-        cursor.execute("""
-        INSERT INTO levels (id, course_id, level_number, title, description)
-        VALUES (?, ?, ?, ?, ?)
-        """, (lvl_id, course_id, lvl.get("level_number", lvl_idx + 1), lvl.get("title", f"Level {lvl_idx+1}"), lvl.get("description", "")))
-
-        for lsn_idx, lsn in enumerate(lvl.get("lessons", [])):
-            lsn_id = f"lsn-{uuid.uuid4().hex[:8]}"
-            lsn_title = lsn.get("title", f"Lesson {lsn_idx+1}")
-            lsn_summary = lsn.get("short_summary", "")
-            lsn_long = lsn.get("long_explanation", "")
-            lsn_key_ideas = lsn.get("key_ideas", [])
-            lsn_insights = lsn.get("practical_insights", [])
-            lsn_examples = lsn.get("examples", [])
-            lsn_actions = lsn.get("action_items", [])
-            lsn_diagram = lsn.get("mermaid_diagram", "graph LR\n    A[Input] --> B[Output]")
-
-            # Generate instant audio metadata & valid MP3 files for Romanian
-            ro_url, ro_dur, ro_scenes, _ = prepare_instant_lesson_audio(
-                lesson_id=lsn_id,
-                title=lsn_title,
-                summary=lsn_summary,
-                long_explanation=lsn_long,
-                key_ideas=lsn_key_ideas,
-                practical_insights=lsn_insights,
-                examples=lsn_examples,
-                action_items=lsn_actions,
-                conclusion="Stăpâniți aceste fundamente pentru a acționa cu maximă eficiență.",
-                lang="ro"
-            )
-
-            # Generate instant audio metadata & valid MP3 files for English
-            en_url, en_dur, en_scenes, _ = prepare_instant_lesson_audio(
-                lesson_id=lsn_id,
-                title=lsn_title,
-                summary=lsn_summary,
-                long_explanation=lsn_long,
-                key_ideas=lsn_key_ideas,
-                practical_insights=lsn_insights,
-                examples=lsn_examples,
-                action_items=lsn_actions,
-                conclusion="Master these principles to achieve immediate operational clarity.",
-                lang="en"
-            )
-
-            primary_url = ro_url if selected_language == "ro" else en_url
-            primary_scenes = ro_scenes if selected_language == "ro" else en_scenes
-            primary_dur = ro_dur if selected_language == "ro" else en_dur
-            duration_str = f"{max(1, int(round(primary_dur / 60)))} mins"
-            video_url = f"/media/video/{lsn_id}.mp4"
-
-            cursor.execute("""
-            INSERT INTO lessons (
-                id, course_id, level_id, order_index, title, short_summary,
-                long_explanation, key_ideas, practical_insights, examples,
-                action_items, mermaid_diagram, audio_url, audio_url_ro, audio_url_en,
-                video_url, transcript, transcript_ro, transcript_en, duration, completed
-            )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
-            """, (
-                lsn_id,
-                course_id,
-                lvl_id,
-                lsn.get("order_index", lsn_idx + 1),
-                lsn_title,
-                lsn_summary,
-                lsn_long,
-                json.dumps(lsn_key_ideas),
-                json.dumps(lsn_insights),
-                json.dumps(lsn_examples),
-                json.dumps(lsn_actions),
-                lsn_diagram,
-                primary_url,
-                ro_url,
-                en_url,
-                video_url,
-                json.dumps(primary_scenes),
-                json.dumps(ro_scenes),
-                json.dumps(en_scenes),
-                duration_str
-            ))
-
-            lesson_items_for_media.append({
-                "id": lsn_id,
-                "title": lsn_title,
-                "short_summary": lsn_summary,
-                "long_explanation": lsn_long,
-                "key_ideas": lsn_key_ideas,
-                "practical_insights": lsn_insights,
-                "examples": lsn_examples,
-                "action_items": lsn_actions,
-                "mermaid_diagram": lsn_diagram,
-                "primary_lang": selected_language,
-                "course_title": curriculum.get("title", display_title)
-            })
-
-    # Flashcards
-    for card in curriculum.get("flashcards", []):
-        card_id = f"fc-{uuid.uuid4().hex[:8]}"
-        cursor.execute("""
-        INSERT INTO flashcards (id, course_id, question, answer, category, mastered)
-        VALUES (?, ?, ?, ?, ?, 0)
-        """, (card_id, course_id, card.get("question", ""), card.get("answer", ""), card.get("category", "Concept")))
-
-    # Quizzes
-    for q in curriculum.get("quizzes", []):
-        q_id = f"qz-{uuid.uuid4().hex[:8]}"
-        cursor.execute("""
-        INSERT INTO quizzes (id, course_id, question, options, correct_index, explanation)
-        VALUES (?, ?, ?, ?, ?, ?)
-        """, (q_id, course_id, q.get("question", ""), json.dumps(q.get("options", [])), q.get("correct_index", 0), q.get("explanation", "")))
-
-    conn.commit()
-    conn.close()
-
-    # Step 4: Schedule background media synthesis in detached daemon thread
-    import threading
-    threading.Thread(
-        target=synthesize_media_background,
-        args=(course_id, lesson_items_for_media),
-        daemon=True
-    ).start()
-
-    safe_log(f"Book {book_id} and Course {course_id} created instantly!")
-
-    return {
-        "status": "ready",
-        "book_id": book_id,
-        "course_id": course_id,
-        "title": display_title,
-        "author": display_author,
-        "language": selected_language,
-        "levels_count": len(curriculum.get("levels", [])),
-        "lessons_count": total_lessons,
-        "quizzes_count": total_quizzes,
-        "flashcards_count": total_cards,
-        "message": f"Cursul '{display_title}' a fost generat instant pe capitole cu succes!"
-    }
-
-@router.get("")
-def list_books():
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM books ORDER BY created_at DESC")
-    books = [dict(row) for row in cursor.fetchall()]
-    conn.close()
-    return books
-
-@router.get("/{book_id}")
-def get_book(book_id: str):
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM books WHERE id = ?", (book_id,))
-    book = cursor.fetchone()
-    if not book:
-        conn.close()
-        raise HTTPException(status_code=404, detail="Book not found")
-
-    cursor.execute("SELECT id FROM courses WHERE book_id = ?", (book_id,))
-    course = cursor.fetchone()
-    conn.close()
-
-    result = dict(book)
-    result["course_id"] = course["id"] if course else None
+def _public_book(book):
+    result = {key: value for key, value in book.items() if key not in {"file_path", "source_text", "source_pages"}}
+    result["keywords"] = json.loads(result.get("keywords") or "[]")
+    result["focus_keywords"] = json.loads(result.get("focus_keywords") or "[]")
     return result
 
+
+@router.get("")
+def list_books(user=Depends(optional_user)):
+    with closing(get_db_connection()) as conn:
+        rows = [dict(row) for row in conn.execute("SELECT * FROM books ORDER BY created_at DESC")]
+        return [_public_book(book) for book in rows if can_read_book(conn, book, user)]
+
+
+@router.get("/{book_id}")
+def get_book(book_id: str, user=Depends(optional_user)):
+    with closing(get_db_connection()) as conn:
+        book = check_book_access(conn, book_id, user)
+        course = conn.execute("SELECT id FROM courses WHERE book_id=?", (book_id,)).fetchone()
+    return {**_public_book(book), "course_id": course["id"] if course else None}
+
+
 @router.delete("/{book_id}")
-def delete_book(book_id: str):
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("DELETE FROM books WHERE id = ?", (book_id,))
-    conn.commit()
-    conn.close()
+def delete_book(book_id: str, user=Depends(require_user)):
+    with closing(get_db_connection()) as conn:
+        book = check_book_access(conn, book_id, user, write=True)
+        with conn:
+            course_ids = [row["id"] for row in conn.execute("SELECT id FROM courses WHERE book_id=?", (book_id,))]
+            existing_tables = {row["name"] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+            for course_id in course_ids:
+                for table in ["highlights", "group_materials", "quiz_attempts", "notes", "flashcards", "quizzes", "lessons", "levels"]:
+                    if table in existing_tables:
+                        conn.execute(f"DELETE FROM {table} WHERE course_id=?", (course_id,))
+            conn.execute("DELETE FROM courses WHERE book_id=?", (book_id,))
+            conn.execute("DELETE FROM books WHERE id=?", (book_id,))
+    # Only delete an upload inside the configured directory; legacy/demo paths may be elsewhere.
+    stored = Path(book.get("file_path") or "")
+    if stored.is_file() and stored.resolve().parent == UPLOAD_DIR.resolve():
+        stored.unlink(missing_ok=True)
     return {"status": "deleted", "book_id": book_id}

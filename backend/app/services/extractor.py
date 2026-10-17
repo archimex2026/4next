@@ -1,103 +1,138 @@
-import os
+"""Bounded extraction. Preserve real PDF pages; number text sections for other formats."""
 import re
 import zipfile
+from html.parser import HTMLParser
 from pathlib import Path
-from typing import Dict, Any, Tuple
+from xml.etree import ElementTree
 
-def extract_text_from_file(file_path: Path, file_type: str) -> Tuple[str, int, str]:
-    """
-    Extracts text, calculates page count, and extracts author/title hints.
-    Returns: (extracted_text, estimated_pages, title_guess)
-    """
-    text = ""
-    pages = 1
-    raw_stem = file_path.stem.replace("_", " ").replace("-", " ")
-    # Clean up common prefixes like "book-xxxx_"
-    raw_stem = re.sub(r"^book-[a-f0-9]+_", "", file_path.name, flags=re.IGNORECASE)
-    raw_stem = Path(raw_stem).stem.replace("_", " ").replace("-", " ")
-    title_guess = re.sub(r"\s+", " ", raw_stem).strip().title()
+MAX_TEXT_CHARACTERS = 1_000_000
+MAX_PAGES = 500
+MAX_ARCHIVE_BYTES = 40 * 1024 * 1024
 
-    file_type = file_type.lower().strip(".")
 
+class ExtractionError(ValueError):
+    pass
+
+
+class _HTMLText(HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.parts = []
+        self.hidden = 0
+
+    def handle_starttag(self, tag, attrs):
+        if tag in {"script", "style"}:
+            self.hidden += 1
+        if tag in {"p", "br", "h1", "h2", "h3", "li", "div"}:
+            self.parts.append("\n")
+
+    def handle_endtag(self, tag):
+        if tag in {"script", "style"}:
+            self.hidden = max(0, self.hidden - 1)
+
+    def handle_data(self, data):
+        if not self.hidden:
+            self.parts.append(data)
+
+
+def _clean(text):
+    text = text.replace("\x00", "").replace("\r\n", "\n")
+    return "\n".join(re.sub(r"[ \t]+", " ", line).strip() for line in text.splitlines()).strip()
+
+
+def _bounded_archive(archive):
+    entries = archive.infolist()
+    if len(entries) > 1500 or sum(x.file_size for x in entries) > MAX_ARCHIVE_BYTES:
+        raise ExtractionError("Arhiva este prea mare după decomprimare (maximum 40 MB / 1500 fișiere).")
+    if any(x.file_size > 1_000_000 and x.file_size / max(1, x.compress_size) > 150 for x in entries):
+        raise ExtractionError("Arhiva are un raport de compresie nesigur.")
+
+
+def _text_sections(text):
+    # ponytail: text formats have numbered sections, not invented physical pages.
+    sections, current = [], ""
+    for paragraph in re.split(r"\n\s*\n", text):
+        for start in range(0, len(paragraph), 6000):
+            part = paragraph[start:start + 6000]
+            if current and len(current) + len(part) > 6000:
+                sections.append(current)
+                current = ""
+            current += ("\n\n" if current else "") + part
+    if current:
+        sections.append(current)
+    return [{"page": i + 1, "text": chunk} for i, chunk in enumerate(sections)]
+
+
+def extract_document(file_path: Path, file_type: str) -> dict:
+    kind = file_type.lower().lstrip(".")
+    title, pages = "", []
     try:
-        if file_type == "pdf":
-            import PyPDF2
-            with open(file_path, "rb") as f:
-                reader = PyPDF2.PdfReader(f)
-                pages = max(1, len(reader.pages))
-                extracted_pages = []
-                # Extract 100% of all pages from the document without artificial caps
-                for i in range(pages):
-                    try:
-                        p_text = reader.pages[i].extract_text()
-                        if p_text and p_text.strip():
-                            extracted_pages.append(f"[Page {i+1}]\n{p_text.strip()}")
-                    except Exception as pe:
-                        print(f"Notice extracting page {i+1}: {pe}")
-                
-                text = "\n\n".join(extracted_pages)
-                
-                # Try reading metadata title
-                if reader.metadata and reader.metadata.title:
-                    meta_title = reader.metadata.title.strip()
-                    if len(meta_title) > 3 and not meta_title.lower().endswith(".pdf"):
-                        title_guess = meta_title
-
-                # If first page has a clear title header (e.g. "Sprint 1.MSD: Business Domain Design")
-                if extracted_pages:
-                    first_lines = [l.strip() for l in extracted_pages[0].split("\n") if len(l.strip()) > 3]
-                    if first_lines:
-                        candidate = " ".join(first_lines[:3])
-                        # Clean up technical artifacts
-                        cleaned_cand = re.sub(r"\s+", " ", candidate).strip()
-                        if 8 <= len(cleaned_cand) <= 70:
-                            title_guess = cleaned_cand
-
-        elif file_type in ["docx", "doc"]:
-            import docx
-            doc = docx.Document(file_path)
-            paragraphs = [p.text.strip() for p in doc.paragraphs if p.text.strip()]
-            text = "\n\n".join(paragraphs)
-            pages = max(1, len(text.split()) // 280)
-            if paragraphs and len(paragraphs[0]) < 80:
-                title_guess = paragraphs[0]
-
-        elif file_type == "epub":
-            with zipfile.ZipFile(file_path, "r") as z:
-                html_files = [n for n in z.namelist() if n.endswith(('.html', '.xhtml', '.htm'))]
-                epub_texts = []
-                for h in html_files:
-                    content = z.read(h).decode("utf-8", errors="ignore")
-                    clean_text = re.sub(r"<[^>]+>", " ", content)
-                    clean_text = re.sub(r"\s+", " ", clean_text).strip()
-                    if clean_text:
-                        epub_texts.append(clean_text)
-                text = "\n\n".join(epub_texts)
-                pages = max(1, len(text.split()) // 280)
-
-        elif file_type in ["txt", "md"]:
-            with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
-                text = f.read()
-            pages = max(1, len(text.split()) // 280)
-            first_line = text.strip().split("\n")[0].lstrip("#").strip()
-            if 4 <= len(first_line) <= 80:
-                title_guess = first_line
-
+        if kind == "pdf":
+            from PyPDF2 import PdfReader
+            with file_path.open("rb") as stream:
+                reader = PdfReader(stream, strict=False)
+                if reader.is_encrypted and not reader.decrypt(""):
+                    raise ExtractionError("PDF-ul este protejat cu parolă. Încarcă o copie deblocată.")
+                if len(reader.pages) > MAX_PAGES:
+                    raise ExtractionError("Documentul depășește limita de 500 de pagini.")
+                total_characters = 0
+                for index, page in enumerate(reader.pages):
+                    text = _clean(page.extract_text() or "")
+                    total_characters += len(text)
+                    if total_characters > MAX_TEXT_CHARACTERS:
+                        raise ExtractionError("Textul depășește limita de 1.000.000 de caractere. Împarte PDF-ul în părți.")
+                    pages.append({"page": index + 1, "text": text})
+                title = str((reader.metadata or {}).get("/Title") or "").strip()[:200]
+        elif kind == "docx":
+            with zipfile.ZipFile(file_path) as archive:
+                _bounded_archive(archive)
+            from docx import Document
+            document = Document(file_path)
+            paragraphs = [p.text for p in document.paragraphs]
+            paragraphs.extend(" | ".join(cell.text for cell in row.cells) for table in document.tables for row in table.rows)
+            pages = _text_sections(_clean("\n\n".join(paragraphs)))
+        elif kind == "epub":
+            with zipfile.ZipFile(file_path) as archive:
+                _bounded_archive(archive)
+                paths = [name for name in archive.namelist() if name.lower().endswith((".xhtml", ".html", ".htm"))]
+                if "META-INF/container.xml" in archive.namelist():
+                    container = ElementTree.fromstring(archive.read("META-INF/container.xml"))
+                    rootfile = container.find(".//{*}rootfile")
+                    if rootfile is not None:
+                        package_name = rootfile.attrib.get("full-path", "")
+                        package = ElementTree.fromstring(archive.read(package_name))
+                        manifest = {item.attrib.get("id"): item.attrib.get("href", "") for item in package.findall(".//{*}manifest/{*}item")}
+                        import posixpath
+                        ordered = [posixpath.normpath(posixpath.join(posixpath.dirname(package_name), manifest.get(item.attrib.get("idref"), ""))) for item in package.findall(".//{*}spine/{*}itemref")]
+                        paths = [name for name in ordered if name in paths] or paths
+                total_characters = 0
+                for name in paths:
+                    parser = _HTMLText()
+                    parser.feed(archive.read(name).decode("utf-8", errors="replace"))
+                    text = _clean(" ".join(parser.parts))
+                    total_characters += len(text)
+                    if total_characters > MAX_TEXT_CHARACTERS:
+                        raise ExtractionError("Textul EPUB depășește limita de 1.000.000 de caractere.")
+                    if text:
+                        pages.extend(_text_sections(text))
+                pages = [{"page": i + 1, "text": p["text"]} for i, p in enumerate(pages)]
+        elif kind in {"txt", "md"}:
+            pages = _text_sections(_clean(file_path.read_text(encoding="utf-8-sig")))
         else:
-            with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
-                text = f.read()
-            pages = max(1, len(text.split()) // 280)
+            raise ExtractionError("Format neacceptat. Folosește PDF, EPUB, DOCX, TXT sau MD. Convertește DOC în DOCX.")
+    except ExtractionError:
+        raise
+    except Exception as exc:
+        raise ExtractionError("Fișierul nu poate fi citit. Încarcă o copie validă, cu text selectabil.") from exc
 
-    except Exception as e:
-        print(f"Error extracting {file_path}: {e}")
-        text = f"Content extracted from {file_path.name}."
-        pages = max(pages, 1)
+    text = "\n\n".join(p["text"] for p in pages if p["text"])
+    if len(text) > MAX_TEXT_CHARACTERS:
+        raise ExtractionError("Textul depășește limita de 1.000.000 de caractere. Împarte documentul în părți.")
+    if not re.search(r"[^\W\d_]", text, re.UNICODE):
+        raise ExtractionError("Nu am găsit text selectabil. Pentru un PDF scanat, aplică OCR și încarcă-l din nou.")
+    return {"text": text, "pages": pages, "page_count": len(pages), "title": title, "page_kind": "page" if kind == "pdf" else "section"}
 
-    # Sanitize null bytes (SQLite cannot store \x00 in TEXT fields)
-    text = text.replace("\x00", "")
-    
-    if not text.strip():
-        text = f"Document: {title_guess}. Content parsed with standard curriculum extraction."
-        pages = max(pages, 1)
 
-    return text, pages, title_guess
+def extract_text_from_file(file_path: Path, file_type: str):
+    document = extract_document(file_path, file_type)
+    return document["text"], document["page_count"], document["title"]
