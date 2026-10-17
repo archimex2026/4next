@@ -4,7 +4,7 @@
 
 Echipa a abandonat demo-ul Vercel care trimitea cererile către un backend de pe PC: după sleep, colegii au primit 502. Noua țintă găzduiește interfața și API-ul împreună pe **Render Free**, fără dependență de PC sau tunel. Utilizatorul s-a autentificat în Render și a ales explicit varianta gratuită, acceptând resetarea datelor. Nu activăm un plan cu plată.
 
-**Deploymentul Render și URL-ul final sunt încă în verificare.** Nu prezentăm o adresă anticipată ca fiind funcțională. Sursa pregătită pentru migrare are 78/78 teste backend, 90% acoperire pentru codul activ, 4/4 teste proxy frontend, plus lint, TypeScript și build. Verificările noi se adaugă după execuție.
+**Serviciul Render este Live la https://fournext-study.onrender.com.** Fluxurile cloud verificate includ autentificarea, PDF în română și engleză, generarea cu fallback extractiv când Gemini eșuează, chatul cu citări/refuz, exporturile, clasele și izolarea datelor. Sursa are 78/78 teste backend, 90% acoperire pentru codul activ, 5/5 teste proxy frontend, lint, TypeScript și build. Buildul Docker și smoke testul real al containerului au trecut în GitHub Actions.
 
 ## Un serviciu pentru interfață și API
 
@@ -65,16 +65,20 @@ Dacă accesul GitHub sau Render necesită autentificare umană, pregătirea codu
 
 ## Verificări ale configurației pregătite
 
-- Sursa locală a trecut 78/78 teste backend, 90% acoperire cod activ, 4/4 teste proxy, lint, TypeScript și build de producție.
-- `render.yaml` a trecut validarea locală cu schema oficială Draft 2020-12. CLI Render 2.29 este instalat, însă autentificarea browserului nu autentifică automat CLI-ul; validarea autentificată de platformă se verifică în preview-ul Dashboard după push.
-- GitHub Actions include acum buildul Docker și un smoke test real al containerului prin `scripts/smoke_render.py` pentru health, catalog și PDF. La această actualizare, noul job CI este în așteptarea pushului, iar Docker nu este instalat local. Nu declarăm încă imaginea construită sau serviciul Render live.
+- Sursa locală a trecut 78/78 teste backend, 90% acoperire cod activ, 5/5 teste proxy, lint, TypeScript și build de producție.
+- `render.yaml` a trecut validarea locală cu schema oficială Draft 2020-12 și preview-ul autentificat al platformei. `autoDeployTrigger: "off"` este citat pentru compatibilitate YAML. Câmpul `maxShutdownDelaySeconds`, respins de platformă pe Free, a fost eliminat înainte de crearea serviciului.
+- [GitHub Actions 39066911100](https://github.com/archimex2026/4next/actions/runs/39066911100) a trecut toate cele trei joburi: backend, frontend și imagine Render. Buildul real Docker și `scripts/smoke_render.py` au verificat frontendul, API-ul, SQLite, catalogul public și PDF-ul. Docker nu este instalat local; dovada este execuția CI, distinctă de deploymentul cloud.
+- Sursa a fost integrată fast-forward și publicată pe `main`; ajustarea acceptată de preview-ul Free este în commitul `5833682a39c8bb8fc55b1ad8636bf9a2ee1a4d0d`, iar corecția timeoutului proxy în `02f6162`, publicate pe `main` și `flavius`.
+- Blueprintul `exs-db9thp7avr4c73fc313g` și serviciul Free `srv-db9ti25g1s2s73a053kg` există în workspace-ul `4next`. Deploymentul corecției de timeout `02f6162` este Live la https://fournext-study.onrender.com. Uploadul și generarea au fost testate pentru surse RO și EN, inclusiv fallbackul extractiv etichetat; chatul cu citări/refuz, exporturile PDF, conturile, clasele și izolarea au trecut smoke tests.
+- Cheia Gemini este salvată în Render Environment cu aprobarea utilizatorului, fără expunere în Git. Furnizorul a dat și erori ServerError; existența secretului nu garantează un rezultat AI, iar fallbackul extractiv rămâne etichetat.
 
 ## Checklist înainte de distribuirea linkului
 
-- [ ] Buildul Docker reușește, ambele procese pornesc, health checkul răspunde.
-- [ ] Pagina principală și API-ul răspund pe HTTPS; nu apar secrete sau erori de proxy în răspuns.
-- [ ] Un cont nou se înregistrează, se autentifică și se poate deloga; cookie-ul are Secure și HttpOnly.
-- [ ] Un material privat nu poate fi citit/exportat din alt cont sau ca vizitator.
+- [x] Buildul Docker și smoke testul containerului au trecut în CI.
+- [x] Deploymentul Render este Live, ambele procese pornesc și health checkul public răspunde.
+- [x] Pagina principală și API-ul răspund pe HTTPS; verificările nu au găsit scurgeri de secrete sau erori de proxy în răspuns.
+- [x] Înregistrarea, autentificarea și logoutul au fost verificate; cookie-ul este Secure și HttpOnly.
+- [x] Un material privat nu poate fi citit/exportat din alt cont sau ca vizitator.
 - [ ] Inspecție și upload PDF real, RO/EN, cu selectare concept și generare în limba documentului.
 - [ ] Lecții, highlights, notițe, progres, flashcard și quiz funcționează.
 - [ ] Chatul oferă citat exact pentru o întrebare prezentă și refuz pentru una absentă, inclusiv PDF cu rânduri vizuale rupte.
@@ -94,3 +98,11 @@ Ulterior, echipa a raportat 502 după sleep. Interfața putea fi disponibilă î
 Cheia Gemini a răspuns unui apel JSON real și unui upload în mod `ai_grounded` în runda anterioară. Alte cereri au întâlnit indisponibilitatea furnizorului și au folosit fallbackul extractiv. Disponibilitatea modelului rămâne distinctă de starea serverului Render.
 
 Surse tehnice: [Render Web Services](https://render.com/docs/web-services), [Render Free](https://render.com/docs/free), [Render Persistent Disks](https://render.com/docs/disks).
+
+## Corecția timeoutului la upload în cloud
+
+Un deployment Render a răspuns corect la health și PDF, dar un upload a primit 500 de la proxyul Next după vechea limită implicită de aproximativ 30 de secunde. Analiza folosește o limită exterioară de 28 de secunde pentru furnizor, la care se adaugă extracția și procesarea pe CPU-ul Render Free; fallbackul backend putea termina după expirarea proxyului. Healthul API a rămas funcțional. Corecția din `02f6162` a fost publicată și verificată live.
+
+`experimental.proxyTimeout` este acum limitat la 120000 ms în `frontend/next.config.ts`, fără a elimina timeoutul. Testul de regresie folosește implementarea reală de proxy Next și verifică atât terminarea unei cereri mai lente decât vechiul prag, cât și expirarea limitei finite. CI39066911100 a trecut cele 78 de teste backend, 90% acoperire, cinci teste proxy, lint, TypeScript, build și imaginea Docker reală. Deployul corecției și verificările uploadului/chatului în cloud au trecut.
+
+PDF-urile publice RO/EN, în toate cele cinci variante de export, au trecut verificarea Unicode programatică și verificarea vizuală a primei pagini. Aceste rezultate nu înlocuiesc verificarea uploadului și a chatului după redeploy.

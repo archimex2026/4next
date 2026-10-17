@@ -58,7 +58,7 @@ Acestea apar ca „În pregătire”, cu dependențele explicate. Nu există tar
 
 ## Evidența livrării
 
-Lucrările pornesc de pe branch-ul `flavius`; merge-ul pe `main` și publicarea se consemnează după verificarea finală. C01–C05, S01–S05, G01–G02 și A01 sunt conectate la fluxuri reale. C06 este disponibil ca draft de prototip. F01–F06 și integrarea programei oficiale sunt prezentate în `/roadmap` ca „În pregătire”; nu sunt servicii active.
+Sursa verificată este integrată fast-forward și publicată pe `main` și `flavius`; serviciul Render este Live și fluxurile de bază au trecut verificări cloud. C01–C05, S01–S05, G01–G02 și A01 sunt conectate la fluxuri reale. C06 este disponibil ca draft de prototip. F01–F06 și integrarea programei oficiale sunt prezentate în `/roadmap` ca „În pregătire”; nu sunt servicii active.
 
 - [x] Conturi, sesiuni, expirare/logout, preferințe și termeni la înregistrare.
 - [x] Upload privat implicit, publicare/retragere, ratinguri reale și căutare inclusiv în cuvinte-cheie.
@@ -110,7 +110,7 @@ Runda din 17 octombrie adaugă cerințele din `H:\4Next\citeste_asta.txt`. Fiși
 - [x] Actualizarea documentului Word de proiect; validare structurală și verificare vizuală a tuturor celor șase pagini după export PDF printr-o instanță Microsoft Word proprie, ascunsă și închisă la final. PDF/PNG sunt doar intermediari locali de QA.
 - [x] Istoric: backend demo pe PC, secret Gemini pe server și verificări HTTPS/cookie/CORS; a fost înlocuit ca direcție de găzduire după incidentul 502.
 - [ ] Migrarea interfeței și backendului într-un singur serviciu Render; verificare independentă de PC și verificarea resetării așteptate a datelor după restart/redeploy.
-- [ ] Confirmarea diferențelor de pe `main` și `flavius`, verificări finale, apoi merge fără suprascrierea muncii echipei.
+- [x] Diferențele verificate, merge fast-forward și push pe `main`; configurația Free validată în preview și publicată pe ambele branch-uri.
 - [x] Istoric: `4next.vercel.app` era ocupat și s-a folosit `4next-study.vercel.app`. Acest URL nu mai este adresa oficială.
 - [ ] Confirmarea noii adrese Render numai după deployment verificat.
 
@@ -120,7 +120,7 @@ Cele 52 de teste și 89% acoperire de mai sus descriu runda anterioară. Rezulta
 
 Demo anterior, retras din rolul oficial: https://4next-study.vercel.app. `4next.vercel.app` este ocupat. Instanța are backend izolat pe portul 18000, bază/fișiere separate și gateway protejat. Autentificarea HTTPS și exporturile PDF au trecut verificarea publică. Cheia Gemini a răspuns real; erorile temporare ale furnizorului folosesc extragerea locală etichetată.
 
-Verificare nouă din această rundă: **78/78 teste backend, 90% acoperire pentru codul activ, 4/4 teste proxy frontend**, lint, TypeScript și build de producție reușite. Gateway-ul izolat respinge accesul direct fără secret, iar răspunsul Next real nu expune antetele interne. Generarea reală Gemini a produs un material `ai_grounded`. Detalii de deployment în [deployment_demo.md](deployment_demo.md).
+Verificare nouă din această rundă: **78/78 teste backend, 90% acoperire pentru codul activ, 5/5 teste proxy frontend**, lint, TypeScript și build de producție reușite. Gateway-ul izolat respinge accesul direct fără secret, iar răspunsul Next real nu expune antetele interne. Generarea reală Gemini a produs un material `ai_grounded`. Detalii de deployment în [deployment_demo.md](deployment_demo.md).
 
 Corecție găsită în testul public: rândurile vizuale ale PDF-ului fragmentau propozițiile și puteau produce refuzuri false în chat. Se păstrează acum rândurile simple în citatele exacte, iar răspunsul extractiv include același context limitat la cinci fragmente ca modelul. Trei teste noi verifică circuitul PDF real, întrebări cu/fără diacritice și păstrarea refuzurilor pentru fapte absente.
 
@@ -135,13 +135,16 @@ Conversația adăugată de Flavius confirmă că echipa a primit 502 după ce PC
 - [ ] Datele demo temporare sub `/var/data`: SQLite, uploaduri și media; mesaj vizibil despre resetare.
 - [x] `render.yaml`, Dockerfile.render și supervisor în repo, fără chei/baze/date personale în context; schemă oficială validată local.
 - [x] Teste locale pentru supervisor, health check și izolarea variabilelor; lint, TypeScript și build de producție trecute.
-- [ ] Noul job CI de build Docker și smoke test real al imaginii, apoi verificarea logurilor cloud fără secrete.
+- [x] Jobul CI real Docker build și smoke test imagine, plus backend/frontend: toate trecute în run 39066911100.
+- [ ] Verificarea deploymentului Render și a logurilor cloud fără secrete.
 - [x] Cont Render autentificat de utilizator.
-- [ ] Repository accesibil și deployment creat în Dashboard.
+- [x] Repository accesibil, Blueprint validat și serviciu Docker Free creat în Dashboard; redeploymentul corecției de timeout este în curs.
 - [x] Alegere explicită: Render Free, fără disc, cu resetarea datelor acceptată; niciun plan cu plată activat.
-- [ ] Secret Gemini introdus în mediul serverului, fără prefix `NEXT_PUBLIC_`.
+- [x] Secret Gemini transferat în Render Environment cu aprobarea utilizatorului, fără prefix `NEXT_PUBLIC_` și fără publicarea cheii. Erorile furnizorului folosesc fallback extractiv etichetat.
 - [ ] URL Render, login și upload PDF verificate; chat cu citare/refuz, toate exporturile, grup și coș restaurate corect.
 - [ ] Funcționare fără backendul PC-ului; la restart/redeploy se acceptă resetarea datelor, iar contul poate fi recreat fără parolă implicită în cod.
 - [ ] Rezultatele și URL-ul final actualizate în README, aceste documente și Word; Canva rămâne ulterior.
 
-Pașii concreți de configurare și criteriile de acceptare sunt în [deployment_demo.md](deployment_demo.md). Sursa pregătită pentru Render a trecut 78/78 teste backend, 90% cod activ și 4/4 teste proxy, plus lint, TypeScript și build. Testarea imaginii Docker și verificările live rămân distincte.
+Pașii concreți de configurare și criteriile de acceptare sunt în [deployment_demo.md](deployment_demo.md). Sursa pregătită pentru Render a trecut 78/78 teste backend, 90% cod activ și 5/5 teste proxy, plus lint, TypeScript și build. Testarea imaginii Docker și verificările live rămân distincte.
+
+Stare: serviciul https://fournext-study.onrender.com este Live, iar verificările cloud pentru fluxurile esențiale au trecut. Datele rămân temporare pe planul Free. CI39066911100 a trecut inclusiv buildul real Docker și smoke testul containerului.

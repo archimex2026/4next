@@ -1,6 +1,6 @@
 # Auditul planului de backend 4Next
 
-Audit al bazei funcționale din 17 octombrie 2026, actualizat pentru migrarea Render. Integrarea din `flavius` în `main` se verifică separat; auditul nu certifică un deployment cloud. Planul de referință este `H:\4Next\backend_architecture_plan.md`, redactat înaintea implementării conturilor și a spațiului de studiu. Tabelul compară toate cele 30 de puncte ale planului cu implementarea reală. O alternativă funcțională nu înseamnă că tehnologia propusă există deja.
+Audit al bazei funcționale din 17 octombrie 2026, actualizat pentru migrarea Render. Integrarea fast-forward din `flavius` în `main` și push-ul sunt realizate. Planul de referință este `H:\4Next\backend_architecture_plan.md`, redactat înaintea implementării conturilor și a spațiului de studiu. Tabelul compară toate cele 30 de puncte ale planului cu implementarea reală. O alternativă funcțională nu înseamnă că tehnologia propusă există deja.
 
 | Nr | Cerință din plan | Stare și dovadă în cod | Diferență sau pas rămas |
 | --- | --- | --- | --- |
@@ -47,14 +47,14 @@ Baza anterioară a trecut 52 de teste backend, cu 89% acoperire pentru codul act
 
 Coșul este implementat și verificat; publicarea URL-ului este verificată separat înainte de confirmare. Fișierul de plan este o propunere a echipei, nu o instrucțiune de a publica secrete sau de a înlocui automat componente funcționale.
 
-Verificare nouă din această rundă: **78/78 teste backend, 90% acoperire pentru codul activ, 4/4 teste proxy frontend**, lint, TypeScript și build de producție reușite. Gateway-ul izolat respinge accesul direct fără secret, iar răspunsul Next real nu expune antetele interne. Generarea reală Gemini a produs un material `ai_grounded`. Detalii de deployment în [deployment_demo.md](deployment_demo.md).
+Verificare nouă din această rundă: **78/78 teste backend, 90% acoperire pentru codul activ, 5/5 teste proxy frontend**, lint, TypeScript și build de producție reușite. Gateway-ul izolat respinge accesul direct fără secret, iar răspunsul Next real nu expune antetele interne. Generarea reală Gemini a produs un material `ai_grounded`. Detalii de deployment în [deployment_demo.md](deployment_demo.md).
 
 ## Decizia de găzduire după incidentul 502
 
 Demo-ul Vercel anterior depindea de backendul de pe PC. Echipa a raportat eroare 502 după sleep, astfel că ținta de găzduire s-a schimbat: un Web Service Docker pe Render, cu Next.js pe portul public `PORT` și FastAPI numai la `127.0.0.1:8000`. Proxyul păstrează API-ul și cookie-urile pe aceeași origine. Nu mai folosim un tunel către calculator pentru ținta oficială.
 
-Echipa a ales explicit Free, fără disc și fără activarea facturării. Datele SQLite, uploadurile și media sunt temporare sub `/var/data`; restartul, redeployul și oprirea automată pot reseta conturile și fișierele. Serviciul Free se oprește după 15 minute fără trafic, iar accesul următor poate avea aproximativ un minut de pornire. Autentificarea în Render a fost realizată; deploymentul aplicației se confirmă separat. [Documentația Render Free](https://render.com/docs/free)
+Echipa a ales explicit Free, fără disc și fără activarea facturării. Datele SQLite, uploadurile și media sunt temporare sub `/var/data`; restartul, redeployul și oprirea automată pot reseta conturile și fișierele. Serviciul Free se oprește după 15 minute fără trafic, iar accesul următor poate avea aproximativ un minut de pornire. Autentificarea în Render, preview-ul Blueprint, crearea serviciului și deploymentul Live sunt realizate. [Documentația Render Free](https://render.com/docs/free)
 
 Persistența este o opțiune ulterioară, prin disc pe serviciu cu plată sau prin baze și stocare externe, după aprobarea bugetului. Nu este inclusă în demo-ul Free ales.
 
-Cele 78 de teste backend, 90% acoperire și patru teste proxy descriu verificarea locală a sursei pregătite pentru Render. Imaginea Docker, pornirea ambelor procese, verificarea de sănătate și comportamentul datelor temporare necesită verificări noi. Nu există încă în acest audit o afirmație că URL-ul Render este live. Instrucțiunile operaționale sunt în [deployment_demo.md](deployment_demo.md).
+Cele 78 de teste backend, 90% acoperire și cinci teste proxy descriu verificarea locală a sursei pregătite pentru Render. Buildul Docker și smoke testul containerului pentru frontend, API, SQLite, catalog și PDF au trecut în CI 39066911100. Deploymentul Live a fost verificat pe https://fournext-study.onrender.com. Testele cloud au acoperit conturi, upload PDF în română și engleză, generare cu fallback etichetat, citări/refuzuri, exporturi, clase, publicare și izolare între utilizatori. Gemini poate returna erori ServerError; fallbackul extractiv a trecut testele. Datele Free rămân temporare și pot fi resetate. Instrucțiunile operaționale sunt în [deployment_demo.md](deployment_demo.md).

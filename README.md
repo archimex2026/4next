@@ -2,7 +2,7 @@
 
 4Next este un spațiu de studiu pentru elevi și studenți: adaugi materialele tale, alegi conceptele, timpul și profunzimea, apoi studiezi prin lecții, flashcarduri, quizuri și întrebări ancorate în sursă. Pregătirea pentru examene este direcția produsului.
 
-Versiunea curentă este un prototip funcțional. **Migrarea întregii aplicații pe Render este în curs**: interfața și API-ul vor rula împreună, independent de calculatorul echipei. Adresa Render se anunță după deployment și verificarea fluxului complet. Demo-ul Vercel anterior este retras din rolul de adresă oficială. Lucrările se integrează din branch-ul **flavius** în **main**, după verificare; funcțiile pentru finanțare sunt prezentate separat în pagina „Ce urmează”.
+Versiunea curentă este un prototip funcțional, publicat pe Render la [fournext-study.onrender.com](https://fournext-study.onrender.com). Interfața și API-ul rulează împreună, independent de calculatorul echipei. Fluxurile cloud testate includ autentificarea, uploadul PDF, generarea extractivă/AI, citările, exporturile PDF, studiul și clasele. Demo-ul folosește planul Free: datele pot fi resetate, iar furnizorul Gemini poate fi indisponibil; în acel caz este folosit fallbackul extractiv etichetat. Demo-ul Vercel anterior este retras din rolul de adresă oficială. Sursa verificată este integrată și publicată pe **main** și **flavius**; funcțiile pentru finanțare sunt prezentate separat în pagina „Ce urmează”.
 
 ## Funcții disponibile
 
@@ -77,7 +77,7 @@ node --test tests/proxy.test.mjs
 npm run build
 ```
 
-Ultima verificare locală a sursei pregătite pentru Render: **78/78 teste backend**, **90% acoperire pentru codul activ**, **4/4 teste proxy frontend**, lint fără erori/avertismente, TypeScript și build reușite.
+Ultima verificare locală a sursei pregătite pentru Render: **78/78 teste backend**, **90% acoperire pentru codul activ**, **5/5 teste proxy frontend**, lint fără erori/avertismente, TypeScript și build reușite.
 
 Sunt testate autentificarea și expirarea sesiunilor, izolarea între conturi, publicarea/ratingurile, revocarea accesului în clase, limba/citările, atacurile prin documente, uploadurile, PDF-ul Unicode și limitele de utilizare. Testele folosesc baze temporare și modele simulate, fără servicii plătite. Acoperirea configurată exclude generatoarele video/diagrame moștenite care nu sunt conectate la fluxul curent. GitHub Actions rulează verificările pentru push pe `flavius`/`main` și pentru PR-uri.
 
@@ -89,7 +89,7 @@ Echipa a ales explicit **Render Free pentru demo, cu date temporare**. SQLite, u
 
 Pentru păstrarea datelor ulterior, aceeași arhitectură poate folosi un serviciu cu disc persistent, după aprobarea costului și testarea backupului. [Render Persistent Disks](https://render.com/docs/disks)
 
-Configurația este în [render.yaml](render.yaml), [Dockerfile.render](Dockerfile.render) și [scripts/run_render.py](scripts/run_render.py). Blueprintul Free Frankfurt folosește `main`, fără disc și cu publicare manuală. Schema oficială a fost validată local; noul job CI de build/test Docker și verificarea cloud sunt în așteptare; nu este încă declarat un URL Render funcțional sau un deployment Render reușit. Cheia Gemini rămâne în variabilele secrete ale serverului. Valorile locale `.env`, SQLite, parolele și fișierele utilizatorilor nu intră în Git sau în imaginea Docker. Textele juridice rămân drafturi pentru prototip.
+Configurația este în [render.yaml](render.yaml), [Dockerfile.render](Dockerfile.render) și [scripts/run_render.py](scripts/run_render.py). Blueprintul Free Frankfurt folosește `main`, fără disc și cu publicare manuală. Schema oficială și preview-ul Blueprint din Render au fost validate. [GitHub Actions 39066911100](https://github.com/archimex2026/4next/actions/runs/39066911100) a trecut toate cele trei joburi, inclusiv buildul și testarea reală a containerului. Serviciul Render Free este Live, iar verificările cloud pentru homepage, health, catalog, PDF și fluxurile de studiu au trecut, cu fallback extractiv disponibil când Gemini eșuează. Cheia Gemini este configurată în mediul Render cu aprobarea utilizatorului; cheia rămâne secret de server. Valorile locale `.env`, SQLite, parolele și fișierele utilizatorilor nu intră în Git sau în imaginea Docker. Textele juridice rămân drafturi pentru prototip.
 
 Planul, pașii din Dashboard, configurația de mediu și verificările înainte de lansare sunt în [deployment_demo.md](docs/deployment_demo.md). Prototipul Vercel cu API pe PC a trecut anterior verificări publice, apoi echipa a raportat 502 după intrarea PC-ului în sleep. Acele verificări sunt istoric, nu dovadă de disponibilitate curentă. Adresa Vercel nu mai este ținta de lansare.
 
