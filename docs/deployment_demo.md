@@ -106,3 +106,7 @@ Un deployment Render a răspuns corect la health și PDF, dar un upload a primit
 `experimental.proxyTimeout` este acum limitat la 120000 ms în `frontend/next.config.ts`, fără a elimina timeoutul. Testul de regresie folosește implementarea reală de proxy Next și verifică atât terminarea unei cereri mai lente decât vechiul prag, cât și expirarea limitei finite. CI39066911100 a trecut cele 78 de teste backend, 90% acoperire, cinci teste proxy, lint, TypeScript, build și imaginea Docker reală. Deployul corecției și verificările uploadului/chatului în cloud au trecut.
 
 PDF-urile publice RO/EN, în toate cele cinci variante de export, au trecut verificarea Unicode programatică și verificarea vizuală a primei pagini. Aceste rezultate nu înlocuiesc verificarea uploadului și a chatului după redeploy.
+
+## Verificare după remedierea generării — 18 octombrie 2026
+
+Aplicația `b2579fc` este Live cu noua cheie Gemini configurată ca secret. Generarea folosește implicit `gemini-3.1-flash-lite`; verificarea factuală folosește `gemini-3.8-flash`, cu failover tehnic către `gemini-3.6-flash` în același buget limitat. Testul public pe PDF-ul C++ de 22 de pagini a trecut în mod AI, inclusiv chatul despre const/constexpr și PDF-ul complet. Testul public RO a păstrat limba română. [CI main](https://github.com/archimex2026/4next/actions/runs/39073364778) a trecut toate joburile pentru acest cod. Detalii și limite: [remediere_calitate_ai.md](remediere_calitate_ai.md).

@@ -103,3 +103,5 @@ Planul, pașii din Dashboard, configurația de mediu și verificările înainte 
 - [Documentul de lucru actualizat](docs/4Next_document_de_lucru_hackathon.docx)
 
 Proiectul evoluează din baza preexistentă Book2Sound/Book2Course. Această proveniență trebuie declarată în materialele de concurs. Prezentarea Canva și livrabilele finale de hackathon se pregătesc după stabilizarea demo-ului.
+
+Remedierea din 18 octombrie și rezultatele testelor reale pe Render sunt în [remediere_calitate_ai.md](docs/remediere_calitate_ai.md). Aplicația Live rulează codul `b2579fc`, verificat prin [CI 39073364778](https://github.com/archimex2026/4next/actions/runs/39073364778). Materialele create cu vechiul generator trebuie reîncărcate pentru a folosi noua extracție și noile explicații.

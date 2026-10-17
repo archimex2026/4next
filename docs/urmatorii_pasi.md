@@ -20,8 +20,9 @@ Generarea AI depinde de disponibilitatea Gemini. Când furnizorul dă eroare, ap
 
 ### Următoarea rundă tehnică
 
-- [x] Remediere locală a generării: explicațiile AI nu mai sunt înlocuite cu citate; extracție PDF fără glyph-uri duplicate, context pe toate paginile, citări prin ID, verificarea suportului și avertizare de timp. Model implicit testat: `gemini-3.1-flash-lite`. Detalii și limite în [remediere_calitate_ai.md](remediere_calitate_ai.md).
-- [ ] Confirmare după deployment pe Render și testarea unor materiale reale în alte limbi și domenii.
+- [x] Remediere locală a generării: explicațiile AI nu mai sunt înlocuite cu citate; extracție PDF fără glyph-uri duplicate, context pe toate paginile, citări prin ID, verificarea suportului și avertizare de timp. Generare: `gemini-3.1-flash-lite`; verificator independent `gemini-3.8-flash`, cu failover tehnic limitat către `gemini-3.6-flash`. Detalii și limite în [remediere_calitate_ai.md](remediere_calitate_ai.md).
+- [x] Deployment `b2579fc` Live pe Render; smoke test public C++ EN: 22 pagini, explicații AI, chat conceptual și PDF. Test public RO: generare `ai_grounded`, limbă `ro`. Cheia nouă este configurată în Render Environment. CI pentru main și flavius a trecut.
+- [ ] Evaluare pedagogică extinsă cu elevi/profesori și materiale din alte domenii/limbi; verificarea automată nu garantează corectitudinea fiecărei explicații.
 - [ ] Bonus solicitat: până la trei documente în același spațiu, cu citare distinctă după document și pagină; necesită tratarea limitelor cumulate și a limbilor diferite.
 - [ ] Adăugați persistență și backup pentru o versiune folosită de elevi; alegerea bazei, stocării și costului este încă deschisă. Demo-ul gratuit actual acceptă resetarea datelor.
 - [ ] Adăugați istoric de conversații per utilizator, cu ștergere și păstrarea delimitării între conturi.

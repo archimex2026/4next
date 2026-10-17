@@ -37,4 +37,6 @@ Artefactele locale de test sunt în `H:\4Next\artifact-qa\ai-fix`, în afara Git
 - Dacă modelul, cheia sau verificarea nu sunt disponibile, aplicația oferă extrase etichetate, nu pretinde că a produs o lecție AI.
 - Materialele generate anterior păstrează conținutul vechi în baza de date. Pentru a beneficia de corecția extracției și a generării, documentul trebuie reîncărcat. Nu se șterg automat notițe sau progres.
 - Bonusul cu până la trei surse într-un spațiu rămâne separat: trebuie citate după document și pagină, validate limitele cumulate și tratate documentele în limbi diferite.
-- Publicarea acestei corecții și verificarea ei pe Render se confirmă separat de testele locale. Datele planului Free rămân temporare.
+- Deploymentul aplicației `b2579fc` este Live pe Render. Smoke testul public pe PDF-ul C++ a trecut în mod `ai_grounded` (upload aproximativ 71 secunde pe Free), cu 22 pagini păstrate, chat conceptual și export PDF. O sursă RO a produs material `ai_grounded` în română. [CI main 39073364778](https://github.com/archimex2026/4next/actions/runs/39073364778) și CI flavius au trecut, inclusiv imaginea Docker. Sunt 89 de teste backend în CI; ultima verificare locală de acoperire a raportat 90% pentru codul activ. Datele planului Free rămân temporare.
+
+Backendul local de pe portul 8000 a fost repornit cu noul cod și cheia nouă, cu reload pentru dezvoltare. Cele două materiale QA nereușite create în această verificare au fost mutate în coș, fără ștergere definitivă.
