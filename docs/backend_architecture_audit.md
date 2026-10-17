@@ -57,4 +57,4 @@ Echipa a ales explicit Free, fără disc și fără activarea facturării. Datel
 
 Persistența este o opțiune ulterioară, prin disc pe serviciu cu plată sau prin baze și stocare externe, după aprobarea bugetului. Nu este inclusă în demo-ul Free ales.
 
-Cele 71 de teste backend, 90% acoperire și patru teste proxy descriu verificarea locală a sursei pregătite pentru Render. Imaginea Docker, pornirea ambelor procese, verificarea de sănătate și comportamentul datelor temporare necesită verificări noi. Nu există încă în acest audit o afirmație că URL-ul Render este live. Instrucțiunile operaționale sunt în [deployment_demo.md](deployment_demo.md).
+Cele 78 de teste backend, 90% acoperire și patru teste proxy descriu verificarea locală a sursei pregătite pentru Render. Imaginea Docker, pornirea ambelor procese, verificarea de sănătate și comportamentul datelor temporare necesită verificări noi. Nu există încă în acest audit o afirmație că URL-ul Render este live. Instrucțiunile operaționale sunt în [deployment_demo.md](deployment_demo.md).

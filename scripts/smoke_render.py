@@ -1,5 +1,6 @@
 """Verify an already-running combined container without credentials or private files."""
 import argparse
+from http.client import RemoteDisconnected
 import json
 import time
 from urllib.error import URLError, HTTPError
@@ -17,7 +18,7 @@ def main():
                 health = json.load(response)
                 if response.status == 200 and health.get("status") == "ok":
                     break
-        except (URLError, HTTPError, TimeoutError):
+        except (URLError, HTTPError, OSError, RemoteDisconnected):
             pass
         time.sleep(2)
     else:
