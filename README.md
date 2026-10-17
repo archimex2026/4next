@@ -26,9 +26,9 @@ Versiunea curentă este un prototip funcțional, publicat pe Render la [fournext
 
 Gemini este opțional și este apelat doar din backend, prin instrucțiuni pedagogice centrale. Documentele și întrebările sunt tratate ca date neîncrezute; modelul nu are instrumente sau dreptul de a executa acțiuni.
 
-Versiunea strictă afișează **fragmente exacte verificate și îndrumări pedagogice localizate**. Când este disponibil, modelul selectează fragmentele relevante; textul factual liber produs de model nu este afișat doar pentru că are atașată o citare. Fără cheie validă sau când serviciul nu răspunde, aplicația funcționează prin extragere locală, etichetată în interfață.
+**Explicațiile, cardurile și quizurile generate sunt păstrate** după validarea structurii, limbii și citărilor și un apel separat care verifică suportul în sursă. Serverul rezolvă identificatorii de citare la fragmentele originale; modelul nu inventează pagini. Această verificare reduce erorile, fără să garanteze adevărul fiecărei explicații. Fără furnizor disponibil sau la respingerea verificării, interfața afișează explicit că sunt disponibile doar extrase. Modelul implicit este `gemini-3.1-flash-lite`, configurabil prin `GEMINI_MODEL`.
 
-Documentele de peste 100.000 de caractere folosesc extragerea locală pentru construirea cursului. Un interval scurt de studiu selectează fragmente, fără să pretindă că acoperă o carte întreagă. Pentru TXT/MD/DOCX/EPUB, reperele sunt secțiuni numerotate; pentru PDF sunt paginile extrase.
+Documentele lungi trimit către AI un context limitat la 75.000 de caractere, distribuit între toate paginile. Sesiunile scurte oferă o selecție sau un overview, cu avertisment înainte și după generare; nu promit parcurgerea întregii cărți. Extragerea PDF elimină caracterele suprapuse și watermarkurile diagonale mari, păstrând numerele reale ale paginilor. Pentru TXT/MD/DOCX/EPUB, reperele sunt secțiuni numerotate; pentru PDF sunt paginile extrase.
 
 ## Limite și funcții viitoare
 
@@ -77,7 +77,7 @@ node --test tests/proxy.test.mjs
 npm run build
 ```
 
-Ultima verificare locală a sursei pregătite pentru Render: **78/78 teste backend**, **90% acoperire pentru codul activ**, **5/5 teste proxy frontend**, lint fără erori/avertismente, TypeScript și build reușite.
+Ultima verificare locală a sursei pregătite pentru Render: **86/86 teste backend**, **90% acoperire pentru codul activ**, **5/5 teste proxy frontend**, lint fără erori/avertismente, TypeScript și build reușite.
 
 Sunt testate autentificarea și expirarea sesiunilor, izolarea între conturi, publicarea/ratingurile, revocarea accesului în clase, limba/citările, atacurile prin documente, uploadurile, PDF-ul Unicode și limitele de utilizare. Testele folosesc baze temporare și modele simulate, fără servicii plătite. Acoperirea configurată exclude generatoarele video/diagrame moștenite care nu sunt conectate la fluxul curent. GitHub Actions rulează verificările pentru push pe `flavius`/`main` și pentru PR-uri.
 

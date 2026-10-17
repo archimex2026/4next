@@ -1,6 +1,7 @@
 """Bounded extraction. Preserve real PDF pages; number text sections for other formats."""
 import re
 import zipfile
+from statistics import median
 from html.parser import HTMLParser
 from pathlib import Path
 from xml.etree import ElementTree
@@ -68,21 +69,28 @@ def extract_document(file_path: Path, file_type: str) -> dict:
     title, pages = "", []
     try:
         if kind == "pdf":
-            from PyPDF2 import PdfReader
-            with file_path.open("rb") as stream:
-                reader = PdfReader(stream, strict=False)
-                if reader.is_encrypted and not reader.decrypt(""):
-                    raise ExtractionError("PDF-ul este protejat cu parolă. Încarcă o copie deblocată.")
+            import pdfplumber
+            with pdfplumber.open(file_path, password="") as reader:
                 if len(reader.pages) > MAX_PAGES:
                     raise ExtractionError("Documentul depășește limita de 500 de pagini.")
                 total_characters = 0
                 for index, page in enumerate(reader.pages):
-                    text = _clean(page.extract_text() or "")
+                    # Faux bold prints the same glyph repeatedly. Removing duplicate
+                    # glyphs fixes identifiers without deleting legitimate C++ operators.
+                    body_size = median(c["size"] for c in page.chars) if page.chars else 12
+                    def is_content(obj):
+                        # Large diagonal draft watermarks cross otherwise readable prose.
+                        matrix = obj.get("matrix", (1, 0, 0, 1))
+                        return not (obj.get("object_type") == "char" and obj.get("size", 0) > body_size * 2.5
+                                    and abs(matrix[1]) > .1 and abs(matrix[2]) > .1)
+                    clean_page = page.filter(is_content).dedupe_chars(tolerance=1, extra_attrs=())
+                    text = _clean(clean_page.extract_text(x_tolerance=2, y_tolerance=3) or "")
                     total_characters += len(text)
                     if total_characters > MAX_TEXT_CHARACTERS:
                         raise ExtractionError("Textul depășește limita de 1.000.000 de caractere. Împarte PDF-ul în părți.")
                     pages.append({"page": index + 1, "text": text})
-                title = str((reader.metadata or {}).get("/Title") or "").strip()[:200]
+                    page.close()
+                title = str((reader.metadata or {}).get("Title") or "").strip()[:200]
         elif kind == "docx":
             with zipfile.ZipFile(file_path) as archive:
                 _bounded_archive(archive)

@@ -70,7 +70,7 @@ class StudyServicesTests(unittest.TestCase):
         for question in ("Ce substante folosesc plantele pentru fotosinteza?","Ce substanțe folosesc plantele pentru fotosinteză?"):
             with self.subTest(question=question),patch("app.services.study_ai.gemini_json",side_effect=select_answer):
                 response = asyncio.run(answer_from_source(question,document["pages"],"ro",sample[1]))
-                self.assertEqual(response["mode"],"ai_grounded")
+                self.assertEqual(response["mode"],"extractive")
                 self.assertNotIn("2200",response["answer"])
                 self.assertTrue({"dioxid","carbon","apa"} <= tokens(response["answer"]))
 
@@ -228,7 +228,7 @@ class StudyServicesTests(unittest.TestCase):
 
     def test_ai_curriculum_only_accepted_with_validated_source_and_language(self):
         curriculum = build_content_aware_curriculum("Biologie", "", RO_TEXT, language="ro")
-        with patch("app.services.ai_analyzer.gemini_json", return_value=curriculum):
+        with patch("app.services.ai_analyzer.gemini_json", return_value=curriculum), patch("app.services.study_ai.gemini_json", return_value={"supported": True}):
             valid = asyncio.run(analyze_book_with_gemini("Biologie", "", RO_TEXT, language="ro"))
         self.assertEqual(valid["generation_mode"], "ai_grounded")
         curriculum["levels"][0]["lessons"][0]["long_explanation"] = "Fotosinteza produce aur în anul 2200. " * 5

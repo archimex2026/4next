@@ -22,5 +22,5 @@ services:
       - key: NEXT_PUBLIC_UPLOAD_LIMIT_MB
         value: "15"
       - key: GEMINI_MODEL
-        value: gemini-flash-latest
+        value: gemini-3.1-flash-lite
       # Optional GEMINI_API_KEY belongs only in Render's Environment settings.

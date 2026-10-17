@@ -3,14 +3,18 @@ import asyncio
 import json
 import math
 import re
+import logging
 from pydantic import BaseModel, Field, ConfigDict
 from app.services.language import resolve_language
-from app.services.study_ai import TEXT, gemini_json, extract_keywords, source_fragments, fold, verify_citations, validate_output_language
+from app.services.study_ai import TEXT, gemini_json, extract_keywords, source_fragments, fold, verify_citations, validate_output_language, verify_teaching
+
+logger = logging.getLogger(__name__)
 
 
 class Citation(BaseModel):
     page: int = Field(ge=1)
-    text: str = Field(min_length=12, max_length=6000)
+    text: str = Field(default="", max_length=6000)
+    source_id: str = Field(default="", max_length=50)
 
 
 class Lesson(BaseModel):
@@ -61,6 +65,25 @@ class Curriculum(BaseModel):
     quizzes: list[Quiz] = Field(default_factory=list, max_length=16)
 
 
+def study_context(pages, limit=75000):
+    """Include every page when possible; otherwise sample every page, never just the start."""
+    nonempty = [page for page in pages if page.get("text", "").strip()]
+    if sum(len(page["text"]) for page in nonempty) <= limit:
+        return nonempty
+    per_page = max(1, limit // max(1, len(nonempty)))
+    context = []
+    for page in nonempty:
+        text = page["text"]
+        if len(text) > per_page:
+            # Contiguous evidence windows remain verifiable against the full source.
+            size = max(1, per_page // 3)
+            for start in (0, max(0, (len(text)-size)//2), max(0, len(text)-size)):
+                context.append({"page": page["page"], "text": text[start:start+size]})
+        else:
+            context.append(page)
+    return context
+
+
 def build_content_aware_curriculum(book_title, author, extracted_text, language=None, source_pages=None,
                                    study_minutes=20, depth="standard", focus_keywords=None):
     language = resolve_language(extracted_text, language)["language"]
@@ -78,9 +101,14 @@ def build_content_aware_curriculum(book_title, author, extracted_text, language=
     budget = max(1, min(12, math.ceil(study_minutes / 5)))
     amount = {"brief": 1, "standard": 3, "deep": 6}.get(depth, 3)
     # Choose excerpts throughout the source instead of pretending a fixed sample covers an entire book.
-    chunks = [fragments[i:i + amount] for i in range(0, len(fragments), amount)]
-    if len(chunks) > budget:
-        chunks = [chunks[round(index * (len(chunks) - 1) / max(1, budget - 1))] for index in range(budget)]
+    # Partition the entire source before sampling. Even a five-minute overview
+    # takes evidence from beginning, middle and end rather than only page one.
+    count = min(budget, max(1, math.ceil(len(fragments) / amount)))
+    chunks = []
+    for index in range(count):
+        group = fragments[index * len(fragments)//count:(index+1) * len(fragments)//count]
+        take = min(amount, len(group))
+        chunks.append([group[round(i * (len(group)-1)/max(1, take-1))] for i in range(take)])
     lessons, cards, quizzes = [], [], []
     for index, chunk in enumerate(chunks):
         excerpts = [item["text"] for item in chunk]
@@ -120,19 +148,30 @@ async def analyze_book_with_gemini(book_title, author, extracted_text, language=
     language = (await asyncio.to_thread(resolve_language, extracted_text, language))["language"]
     pages = source_pages or [{"page": 1, "text": extracted_text}]
     data = None
-    if len(extracted_text) <= 100000:
-        data = await gemini_json(
+    context = [{**item, "source_id": f"e{index}"} for index, item in enumerate(source_fragments(study_context(pages)))]
+    data = await gemini_json(
             "Create a focused study course in the document language. Respect the study time, depth and selected keywords. "
             "Use only document facts, patient teacher explanations, retrieval questions and source-based quizzes. "
+            "Scan ALL supplied pages before choosing a coherent sequence of topics. With a short session, give an overview "
+            "across the document, not just its first page. Teach the subject, not the contents list or epigraph. "
+            "Write at most " + str(min(12, math.ceil(study_minutes/5))) + " lessons, each with a distinct meaningful title, "
+            "a 100-180 word step-by-step explanation, key ideas, and an understanding check. "
+            "Create 4-8 useful flashcards and 3-6 conceptual multiple-choice questions. Avoid random missing-word quizzes. "
+            "For every citation copy its source_id and page from source_pages; leave text empty. The server resolves "
+            "the ID to the exact source text. Never invent citation IDs. Keep code readable. Do not duplicate quoted text in every field. "
             "Do not claim to cover the complete document if the study time is short. Return JSON matching this schema: " + json.dumps(Curriculum.model_json_schema()),
-            {"title": book_title, "author": author, "source_pages": pages, "study_minutes": study_minutes, "depth": depth, "focus_keywords": focus_keywords or []}, language,
+            {"title": book_title, "author": author, "source_pages": context, "study_minutes": study_minutes, "depth": depth, "focus_keywords": focus_keywords or []}, language,
         )
     if isinstance(data, dict):
+        stage = "schema"
         try:
             result = Curriculum.model_validate(data).model_dump()
+            stage = "citations/language"
             items = [lesson for level in result["levels"] for lesson in level["lessons"]] + result["flashcards"] + result["quizzes"]
-            for item in items:
-                item["source_citations"] = verify_citations(item["source_citations"], pages)
+            for index, item in enumerate(items):
+                stage = f"citations item {index}"
+                item["source_citations"] = verify_citations(item["source_citations"], pages, context)
+                stage = f"language item {index}"
                 fields = [value for field, value in item.items() if isinstance(value, str) and field not in {"mermaid_diagram", "duration"}]
                 fields += [value for field in ["key_ideas", "practical_insights", "examples", "action_items", "options"] for value in item.get(field, [])]
                 validate_output_language(" ".join(fields), language)
@@ -145,13 +184,12 @@ async def analyze_book_with_gemini(book_title, author, extracted_text, language=
                 if "mermaid_diagram" in item:
                     item["mermaid_diagram"] = ""
             validate_output_language(" ".join(result[field] for field in ["title", "subtitle", "overview", "target_audience"]), language)
-            # Exact citations establish provenance, not entailment of free-form model prose.
-            # Rebuild factual bodies and practice from the verified excerpts selected by the AI.
-            selected = [citation for level in result["levels"] for lesson in level["lessons"] for citation in lesson["source_citations"]]
-            grounded = await asyncio.to_thread(build_content_aware_curriculum, book_title, author, extracted_text,
-                                               language, selected, study_minutes, depth, focus_keywords)
-            grounded.update(generation_mode="ai_grounded", generation_detail="ai_selected_source_extracts")
-            return grounded
+            stage = "evidence-check"
+            if not await verify_teaching(items, language):
+                raise ValueError("Unsupported teaching content")
+            result.update(keywords=extract_keywords(extracted_text), language=language,
+                          generation_mode="ai_grounded", generation_detail="ai_explained_source")
+            return result
         except (ValueError, TypeError, KeyError):
-            pass
+            logger.warning("Teaching output rejected at %s; using labelled excerpts", stage)
     return await asyncio.to_thread(build_content_aware_curriculum, book_title, author, extracted_text, language, pages, study_minutes, depth, focus_keywords)

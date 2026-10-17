@@ -93,7 +93,7 @@ Selectorul de fișiere nu a putut fi automatizat deoarece pluginul Chrome a refu
 
 ### Limite deliberate
 
-Chatul strict oferă citate verificate și îndrumare pedagogică, nu o explicație liberă garantată factual de un model. O citare corectă nu dovedește adevărul unei parafraze arbitrare; de aceea acel text al modelului nu este afișat. La un buget scurt de studiu se selectează fragmente din sursă, fără a afirma că întreaga carte este acoperită.
+Actualizare 18 octombrie: explicațiile AI se păstrează după validarea limbii, citărilor și o verificare separată a suportului în sursă. Modelul implicit testat este gemini-3.1-flash-lite. Verificarea reduce erorile, fără să garanteze adevărul fiecărei explicații; fallbackul extractiv este semnalat explicit. La un buget scurt de studiu se selectează fragmente din sursă, fără a afirma că întreaga carte este acoperită.
 
 Cotele upload/audio sunt comune instanțelor care folosesc aceeași bază SQLite. Concurența și limita chatului rămân per proces; sunt necesare o coadă comună și limite la proxy pentru extindere. Demo-ul Vercel anterior păstra SQLite și fișierele pe PC într-o instanță separată. Noua țintă Render Free folosește `/var/data` temporar, fără disc; resetarea conturilor și fișierelor a fost acceptată explicit pentru demo.
 
@@ -148,3 +148,5 @@ Conversația adăugată de Flavius confirmă că echipa a primit 502 după ce PC
 Pașii concreți de configurare și criteriile de acceptare sunt în [deployment_demo.md](deployment_demo.md). Sursa pregătită pentru Render a trecut 78/78 teste backend, 90% cod activ și 5/5 teste proxy, plus lint, TypeScript și build. Testarea imaginii Docker și verificările live rămân distincte.
 
 Stare: serviciul https://fournext-study.onrender.com este Live, iar verificările cloud pentru fluxurile esențiale au trecut. Datele rămân temporare pe planul Free. CI39066911100 a trecut inclusiv buildul real Docker și smoke testul containerului.
+
+Remedierea calității cursurilor C++ și dovezile sunt descrise în [remediere_calitate_ai.md](remediere_calitate_ai.md).

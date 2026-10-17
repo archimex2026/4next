@@ -79,6 +79,7 @@ async def inspect_source(file: Optional[UploadFile] = File(None), text: Optional
             "detected_language": detection["language"], "language": detection["language"],
             "language_confidence": detection["confidence"], "language_confirmation_required": detection["ambiguous"],
             "language_supported": detection["language"] in SUPPORTED_LANGUAGES,
+            "source_preview": [{"page": p["page"], "text": p["text"][:600]} for p in document["pages"][:2]],
             "keywords": await asyncio.to_thread(extract_keywords, document["text"]), "supported_languages": SUPPORTED_LANGUAGES}
     finally:
         path.unlink(missing_ok=True)

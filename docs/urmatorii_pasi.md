@@ -1,6 +1,6 @@
 # 4Next — ce mai trebuie adăugat sau schimbat
 
-Actualizat: 17 octombrie 2026. Acesta este un inventar de lucru, nu o promisiune că toate funcțiile sunt deja disponibile.
+Actualizat: 18 octombrie 2026. Acesta este un inventar de lucru, nu o promisiune că toate funcțiile sunt deja disponibile.
 
 ## Starea de acum
 
@@ -20,7 +20,9 @@ Generarea AI depinde de disponibilitatea Gemini. Când furnizorul dă eroare, ap
 
 ### Următoarea rundă tehnică
 
-- [ ] Investigați erorile ServerError ale Gemini pe Render și faceți comportamentul AI ușor de înțeles când se activează fallbackul extractiv.
+- [x] Remediere locală a generării: explicațiile AI nu mai sunt înlocuite cu citate; extracție PDF fără glyph-uri duplicate, context pe toate paginile, citări prin ID, verificarea suportului și avertizare de timp. Model implicit testat: `gemini-3.1-flash-lite`. Detalii și limite în [remediere_calitate_ai.md](remediere_calitate_ai.md).
+- [ ] Confirmare după deployment pe Render și testarea unor materiale reale în alte limbi și domenii.
+- [ ] Bonus solicitat: până la trei documente în același spațiu, cu citare distinctă după document și pagină; necesită tratarea limitelor cumulate și a limbilor diferite.
 - [ ] Adăugați persistență și backup pentru o versiune folosită de elevi; alegerea bazei, stocării și costului este încă deschisă. Demo-ul gratuit actual acceptă resetarea datelor.
 - [ ] Adăugați istoric de conversații per utilizator, cu ștergere și păstrarea delimitării între conturi.
 - [ ] Completați conturile cu verificare email și recuperare parolă înainte de utilizarea pe termen lung.
