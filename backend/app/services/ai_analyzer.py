@@ -170,7 +170,18 @@ async def analyze_book_with_gemini(book_title, author, extracted_text, language=
             items = [lesson for level in result["levels"] for lesson in level["lessons"]] + result["flashcards"] + result["quizzes"]
             for index, item in enumerate(items):
                 stage = f"citations item {index}"
-                item["source_citations"] = verify_citations(item["source_citations"], pages, context)
+                try:
+                    item["source_citations"] = verify_citations(item["source_citations"], pages, context)
+                except ValueError:
+                    # One broken optional practice citation must not discard a
+                    # correctly cited course. Never keep the uncited practice item.
+                    if item in result["flashcards"]:
+                        result["flashcards"].remove(item)
+                        continue
+                    if item in result["quizzes"]:
+                        result["quizzes"].remove(item)
+                        continue
+                    raise
                 stage = f"language item {index}"
                 fields = [value for field, value in item.items() if isinstance(value, str) and field not in {"mermaid_diagram", "duration"}]
                 fields += [value for field in ["key_ideas", "practical_insights", "examples", "action_items", "options"] for value in item.get(field, [])]
@@ -185,6 +196,7 @@ async def analyze_book_with_gemini(book_title, author, extracted_text, language=
                     item["mermaid_diagram"] = ""
             validate_output_language(" ".join(result[field] for field in ["title", "subtitle", "overview", "target_audience"]), language)
             stage = "evidence-check"
+            items = [lesson for level in result["levels"] for lesson in level["lessons"]] + result["flashcards"] + result["quizzes"]
             if not await verify_teaching(items, language):
                 raise ValueError("Unsupported teaching content")
             result.update(keywords=extract_keywords(extracted_text), language=language,

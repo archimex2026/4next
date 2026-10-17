@@ -85,6 +85,16 @@ class TeachingRegressions(unittest.TestCase):
         with self.assertRaises(ValueError):
             verify_citations([{'source_id': 'invented', 'page': 7}], evidence, evidence)
 
+    def test_bad_optional_card_is_omitted_without_discarding_valid_lessons(self):
+        course = build_content_aware_curriculum('Programming', '', TEXT, 'en')
+        course['flashcards'][0]['source_citations'] = [{'page': 999, 'text': 'This quote is fabricated and must never appear.'}]
+        with patch('app.services.ai_analyzer.gemini_json', return_value=course), \
+             patch('app.services.study_ai.gemini_json', return_value={'supported': True}):
+            result = asyncio.run(analyze_book_with_gemini('Programming', '', TEXT, 'en'))
+        self.assertEqual(result['generation_mode'], 'ai_grounded')
+        self.assertTrue(result['levels'][0]['lessons'])
+        self.assertFalse(any(c['page'] == 999 for card in result['flashcards'] for c in card['source_citations']))
+
     def test_comparison_retrieves_pdf_kerned_identifiers(self):
         from app.services.study_ai import _retrieve
         pages = [{'page': 7, 'text': 'The const keyword promises not to change a value. A conste xpr value is evaluated at compile time.'}]

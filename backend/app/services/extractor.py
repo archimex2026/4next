@@ -91,6 +91,8 @@ def extract_document(file_path: Path, file_type: str) -> dict:
                     pages.append({"page": index + 1, "text": text})
                     page.close()
                 title = str((reader.metadata or {}).get("Title") or "").strip()[:200]
+                if title.casefold() in {"untitled", "document", "microsoft word"}:
+                    title = ""
         elif kind == "docx":
             with zipfile.ZipFile(file_path) as archive:
                 _bounded_archive(archive)
