@@ -14,6 +14,90 @@ TEXT = ("A variable stores a value of a particular type. The type determines the
 
 
 class TeachingRegressions(unittest.TestCase):
+    def test_unavailable_verifier_does_not_spend_another_generation_attempt(self):
+        course = build_content_aware_curriculum('Programming', '', TEXT, 'en')
+        with patch('app.services.ai_analyzer.gemini_json', return_value=course) as generator, \
+             patch('app.services.study_ai.gemini_json', return_value=None):
+            result = asyncio.run(analyze_book_with_gemini('Programming', '', TEXT, 'en'))
+        self.assertEqual(result['generation_mode'], 'extractive')
+        generator.assert_called_once()
+
+    def test_cited_but_semantically_invalid_teaching_requires_a_corrected_response(self):
+        import copy
+        course = build_content_aware_curriculum('Programming', '', TEXT, 'en')
+        bad = copy.deepcopy(course)
+        bad['levels'][0]['lessons'][0]['long_explanation'] = 'C++ always requires camelCase variable names and explicitly written types.'
+        reason = 'A course convention cannot be taught as a universal language requirement.'
+        with patch('app.services.ai_analyzer.gemini_json', side_effect=[bad, course]) as generator, \
+             patch('app.services.study_ai.gemini_json', side_effect=[
+                 {'supported': True, 'semantically_valid': False, 'rejection_reasons': [reason]},
+                 {'supported': True, 'semantically_valid': True}]):
+            result = asyncio.run(analyze_book_with_gemini('Programming', '', TEXT, 'en'))
+        self.assertEqual(result['generation_mode'], 'ai_grounded')
+        self.assertNotIn('always requires', result['levels'][0]['lessons'][0]['long_explanation'])
+        self.assertEqual(generator.call_count, 2)
+        self.assertEqual(generator.call_args.args[1]['verification_feedback'], [reason])
+
+    def test_missing_semantic_verdict_is_rejected_even_if_citations_are_supported(self):
+        from app.services.study_ai import verify_teaching
+        item = {'answer': 'A variable stores a typed value.', 'source_citations': [{'page': 1, 'text': TEXT}]}
+        with patch('app.services.study_ai.gemini_json', return_value={'supported': True}):
+            self.assertFalse(asyncio.run(verify_teaching([item], 'en')))
+
+    def test_short_slide_abbreviation_does_not_sever_its_explanation(self):
+        from app.services.study_ai import source_fragments
+        slide = 'Compiled languages\nC++ is a compiled language (vs.\ninterpreted languages such as Python). The compiler produces an executable.'
+        self.assertEqual(list(source_fragments([{'page': 7, 'text': slide}])), [{'page': 7, 'text': slide}])
+
+    def test_malformed_optional_practice_does_not_discard_a_valid_lesson(self):
+        course = build_content_aware_curriculum('Programming', '', TEXT, 'en')
+        course['quizzes'].append({'question': 'This incomplete question must be omitted.'})
+        with patch('app.services.ai_analyzer.gemini_json', return_value=course), \
+             patch('app.services.study_ai.gemini_json', return_value={'supported': True, 'semantically_valid': True}):
+            result = asyncio.run(analyze_book_with_gemini('Programming', '', TEXT, 'en'))
+        self.assertEqual(result['generation_mode'], 'ai_grounded')
+        self.assertTrue(result['levels'][0]['lessons'])
+        self.assertEqual(len(result['quizzes']), len(course['quizzes'])-1)
+
+    def test_pdf_columns_keep_code_and_commentary_in_separate_text_blocks(self):
+        from fpdf import FPDF
+        pdf = FPDF()
+        pdf.add_page()
+        pdf.set_font('Courier', size=10)
+        # PDF objects are written by column; their visual rows overlap.
+        for index, line in enumerate(['int value = 5;', 'value *= 2;', 'return value;']):
+            pdf.text(10, 25 + index*8, line)
+        for index, line in enumerate(['The parameter is a copy.', 'Changing it leaves the caller unchanged.', 'This is pass by value.']):
+            pdf.text(95, 25 + index*8, line)
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'columns.pdf'
+            pdf.output(str(path))
+            source = extract_document(path, 'pdf')['text']
+        self.assertLess(source.index('return value;'), source.index('The parameter is a copy.'))
+        self.assertIn('int value = 5;\nvalue *= 2;\nreturn value;', source)
+
+    def test_ambiguous_quiz_can_be_omitted_without_losing_valid_explanations(self):
+        from app.services.study_ai import verify_teaching
+        course = build_content_aware_curriculum('Programming', '', TEXT, 'en')
+        course['quizzes'][0]['question'] = 'What happens if you try to change the type of a variable in C++?'
+        count = sum(len(level['lessons']) for level in course['levels']) + len(course['flashcards'])
+        with patch('app.services.ai_analyzer.gemini_json', return_value=course), \
+             patch('app.services.study_ai.gemini_json', return_value={'supported': True, 'semantically_valid': True, 'remove_practice': [count]}):
+            result = asyncio.run(analyze_book_with_gemini('Programming', '', TEXT, 'en'))
+        self.assertEqual(result['generation_mode'], 'ai_grounded')
+        self.assertFalse(any(q['question'].startswith('What happens') for q in result['quizzes']))
+        lesson = {'long_explanation': 'A variable stores a typed value.', 'source_citations': [{'page': 1, 'text': TEXT}]}
+        with patch('app.services.study_ai.gemini_json', return_value={'supported': True, 'semantically_valid': True, 'remove_practice': [0]}):
+            self.assertFalse(asyncio.run(verify_teaching([lesson], 'en')))
+
+    def test_numbers_on_an_unrelated_page_do_not_validate_an_invented_claim(self):
+        from app.services.study_ai import verify_teaching
+        items = [{'answer': 'A variable stores 99 values.', 'source_citations': [{'page': 1, 'text': TEXT}]}]
+        evidence = [{'page': 1, 'text': TEXT}, {'page': 2, 'text': 'This unrelated example uses the number 99.'}]
+        with patch('app.services.study_ai.gemini_json') as provider:
+            self.assertFalse(asyncio.run(verify_teaching(items, 'en', evidence)))
+            provider.assert_not_called()
+
     def test_pdf_faux_bold_deduplicates_glyphs_without_breaking_cpp_operators(self):
         from fpdf import FPDF
         pdf = FPDF()
@@ -52,7 +136,7 @@ class TeachingRegressions(unittest.TestCase):
         explanation = 'Start by choosing a type for your variable. This choice tells you which operations you can perform on the value it stores.'
         course['levels'][0]['lessons'][0]['long_explanation'] = explanation
         with patch('app.services.ai_analyzer.gemini_json', return_value=course), \
-             patch('app.services.study_ai.gemini_json', return_value={'supported': True}):
+             patch('app.services.study_ai.gemini_json', return_value={'supported': True, 'semantically_valid': True}):
             result = asyncio.run(analyze_book_with_gemini('Programming', '', TEXT, 'en'))
         self.assertEqual(result['generation_mode'], 'ai_grounded')
         self.assertEqual(result['levels'][0]['lessons'][0]['long_explanation'], explanation)
@@ -66,7 +150,7 @@ class TeachingRegressions(unittest.TestCase):
         explanation = 'The document introduces variables, types, constants and loops. It explains how types affect the operations you can perform.'
         async def provider(task, payload, language, **kwargs):
             if 'Verify the proposed teaching' in task:
-                return {'supported': True}
+                return {'supported': True, 'semantically_valid': True}
             return {'answerable': True, 'answer': explanation, 'source_citations': [quote]}
         with patch('app.services.study_ai.gemini_json', side_effect=provider):
             result = asyncio.run(answer_from_source('what does this material contain', [{'page': 1, 'text': TEXT}], 'en', 'Programming'))
@@ -89,7 +173,7 @@ class TeachingRegressions(unittest.TestCase):
         course = build_content_aware_curriculum('Programming', '', TEXT, 'en')
         course['flashcards'][0]['source_citations'] = [{'page': 999, 'text': 'This quote is fabricated and must never appear.'}]
         with patch('app.services.ai_analyzer.gemini_json', return_value=course), \
-             patch('app.services.study_ai.gemini_json', return_value={'supported': True}):
+             patch('app.services.study_ai.gemini_json', return_value={'supported': True, 'semantically_valid': True}):
             result = asyncio.run(analyze_book_with_gemini('Programming', '', TEXT, 'en'))
         self.assertEqual(result['generation_mode'], 'ai_grounded')
         self.assertTrue(result['levels'][0]['lessons'])
@@ -107,7 +191,7 @@ class TeachingRegressions(unittest.TestCase):
         item = {'long_explanation': 'A variable stores a typed value.',
                 'key_ideas': ['Variables store values.', 'Source code is not portable.'],
                 'source_citations': [{'page': 1, 'text': TEXT}]}
-        with patch('app.services.study_ai.gemini_json', return_value={'supported': True, 'remove_key_ideas': [{'item': 0, 'index': 1}]}):
+        with patch('app.services.study_ai.gemini_json', return_value={'supported': True, 'semantically_valid': True, 'remove_key_ideas': [{'item': 0, 'index': 1}]}):
             self.assertTrue(asyncio.run(verify_teaching([item], 'en')))
         self.assertEqual(item['key_ideas'], ['Variables store values.'])
         self.assertEqual(item['long_explanation'], 'A variable stores a typed value.')
@@ -115,7 +199,7 @@ class TeachingRegressions(unittest.TestCase):
     def test_verifier_failover_only_retries_unavailability_not_negative_verdicts(self):
         from app.services.study_ai import verify_teaching
         item = {'answer': 'A variable stores a typed value.', 'source_citations': [{'page': 1, 'text': TEXT}]}
-        with patch('app.services.study_ai.gemini_json', side_effect=[None, {'supported': True}]) as provider:
+        with patch('app.services.study_ai.gemini_json', side_effect=[None, {'supported': True, 'semantically_valid': True}]) as provider:
             self.assertTrue(asyncio.run(verify_teaching([item], 'en')))
             self.assertEqual(provider.call_count, 2)
             self.assertEqual(provider.call_args.kwargs['model'], 'gemini-3.6-flash')

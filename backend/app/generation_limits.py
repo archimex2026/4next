@@ -5,7 +5,8 @@ from contextlib import closing, contextmanager
 from fastapi import HTTPException
 from app.database import get_db_connection
 
-LIMITS = {"upload": ((60, 5), (86400, 30)), "audio": ((60, 3), (86400, 20)), "inspect": ((60, 10),)}
+LIMITS = {"upload": ((60, 5), (86400, 30)), "segment": ((60, 12), (86400, 100)),
+          "audio": ((60, 3), (86400, 20)), "inspect": ((60, 10),)}
 _slots = threading.BoundedSemaphore(3)
 _lock = threading.Lock()
 _active_users = set()

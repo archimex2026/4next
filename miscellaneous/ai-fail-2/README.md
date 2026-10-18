@@ -11,3 +11,5 @@ Capturile au fost furnizate de Flavius din `H:\4Next\ai-fail-2` la 18 octombrie 
 | [05-quiz-generic-3-intrebari.png](05-quiz-generic-3-intrebari.png) | Trei întrebări; prima are o afirmație ambiguă sau potențial incorectă despre conversiile de tip în C++. |
 
 Pentru analiza tehnică și criteriile propuse, citește [handoff-ul incidentului](../../for_AI_Agents/incidente/generare-insuficienta-pdf-mare.md). Capturile sunt dovezi observate în interfață, nu o validare pagină cu pagină a sursei originale. Nu includeți în dosarul acesta PDF-ul integral fără verificarea drepturilor de distribuție.
+
+Auditul și reparația ulterioară sunt în [raportul de procesare pe segmente](../../docs/audit_generare_segmentata.md). Capturile de aici păstrează rezultatul inițial; nu sunt înlocuite cu rezultate mai noi.

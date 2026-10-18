@@ -12,9 +12,10 @@ from app.security import optional_user, require_user, check_book_access, can_rea
 from app.services.extractor import extract_document, ExtractionError, MAX_TEXT_CHARACTERS
 from app.services.language import detect_document_language, resolve_language, LanguageAmbiguous, SUPPORTED_LANGUAGES
 from app.services.ai_analyzer import analyze_book_with_gemini
-from app.services.study_ai import extract_keywords, fold
+from app.services.study_ai import TEXT, extract_keywords, fold
 from app.generation_limits import consume_budget, generation_slot
 from app.services.trash import move_book_to_trash
+from app.services.segmented_generation import plan_segments, segment_pages, segment_target, save_plan, complete_segment, append_curriculum
 
 router = APIRouter(prefix="/api/books", tags=["Books"])
 MAX_UPLOAD_BYTES = 15 * 1024 * 1024
@@ -79,7 +80,9 @@ async def inspect_source(file: Optional[UploadFile] = File(None), text: Optional
             "detected_language": detection["language"], "language": detection["language"],
             "language_confidence": detection["confidence"], "language_confirmation_required": detection["ambiguous"],
             "language_supported": detection["language"] in SUPPORTED_LANGUAGES,
-            "source_preview": [{"page": p["page"], "text": p["text"][:600]} for p in document["pages"][:2]],
+            "source_preview": [{"page": document['pages'][i]["page"], "text": document['pages'][i]["text"][:1000]}
+                for i in sorted({0, len(document['pages'])//2, len(document['pages'])-1})],
+            "segment_count": len(plan_segments(document['pages'], 20)),
             "keywords": await asyncio.to_thread(extract_keywords, document["text"]), "supported_languages": SUPPORTED_LANGUAGES}
     finally:
         path.unlink(missing_ok=True)
@@ -116,9 +119,14 @@ async def upload_book(file: Optional[UploadFile] = File(None), text: Optional[st
         labels_title = {"ro": "Notițele mele", "en": "My notes", "fr": "Mes notes", "de": "Meine Notizen", "es": "Mis apuntes", "it": "I miei appunti"}
         display_title = (title or "").strip() or document["title"] or (Path(original_name).stem if file else labels_title[selected_language])
         display_author = (author or "").strip()
+        segments = plan_segments(document['pages'], study_minutes)
+        first_pages = segment_pages(segments[0], document['pages']) if segments else document['pages']
         with generation_slot(user["id"], "upload"):
-            curriculum = await analyze_book_with_gemini(display_title, display_author, document["text"],
-                language=selected_language, source_pages=document["pages"], study_minutes=study_minutes, depth=depth, focus_keywords=focus)
+            curriculum = await analyze_book_with_gemini(display_title, display_author, '\n\n'.join(p['text'] for p in first_pages),
+                language=selected_language, source_pages=first_pages,
+                study_minutes=segments[0]['study_minutes'] if segments else study_minutes, depth=depth, focus_keywords=focus,
+                **({'lesson_target': segment_target(segments[0])} if segments else {}))
+        curriculum['keywords'] = extract_keywords(document['text'])
         book_id, course_id = f"book-{uuid.uuid4().hex}", f"course-{uuid.uuid4().hex}"
         levels = curriculum["levels"]
         lessons = [lesson for level in levels for lesson in level["lessons"]]
@@ -135,27 +143,11 @@ async def upload_book(file: Optional[UploadFile] = File(None), text: Optional[st
                 conn.execute("""INSERT INTO courses (id,book_id,title,subtitle,overview,target_audience,estimated_duration,
                     level_count,lesson_count,quiz_count,flashcard_count,language) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
                     (course_id, book_id, curriculum["title"], curriculum["subtitle"], curriculum["overview"], curriculum["target_audience"],
-                     curriculum["estimated_duration"], len(levels), len(lessons), len(curriculum["quizzes"]), len(curriculum["flashcards"]), selected_language))
-                for level_index, level in enumerate(levels):
-                    level_id = f"lvl-{uuid.uuid4().hex}"
-                    conn.execute("INSERT INTO levels (id,course_id,level_number,title,description) VALUES (?,?,?,?,?)",
-                        (level_id, course_id, level_index + 1, level["title"], level["description"]))
-                    for lesson_index, lesson in enumerate(level["lessons"]):
-                        conn.execute("""INSERT INTO lessons (id,course_id,level_id,order_index,title,short_summary,long_explanation,
-                            key_ideas,practical_insights,examples,action_items,mermaid_diagram,duration,source_citations,transcript)
-                            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-                            (f"lsn-{uuid.uuid4().hex}", course_id, level_id, lesson_index + 1, lesson["title"], lesson["short_summary"],
-                             lesson["long_explanation"], json.dumps(lesson.get("key_ideas", []), ensure_ascii=False),
-                             json.dumps(lesson.get("practical_insights", []), ensure_ascii=False), json.dumps(lesson.get("examples", []), ensure_ascii=False),
-                             json.dumps(lesson.get("action_items", []), ensure_ascii=False), "", lesson.get("duration") or f"{max(1, study_minutes // len(lessons))} min",
-                             json.dumps(lesson["source_citations"], ensure_ascii=False), "[]"))
-                for card in curriculum["flashcards"]:
-                    conn.execute("INSERT INTO flashcards (id,course_id,question,answer,category,source_citations) VALUES (?,?,?,?,?,?)",
-                        (f"fc-{uuid.uuid4().hex}", course_id, card["question"], card["answer"], card["category"], json.dumps(card["source_citations"], ensure_ascii=False)))
-                for quiz in curriculum["quizzes"]:
-                    conn.execute("INSERT INTO quizzes (id,course_id,question,options,correct_index,explanation,source_citations) VALUES (?,?,?,?,?,?,?)",
-                        (f"qz-{uuid.uuid4().hex}", course_id, quiz["question"], json.dumps(quiz["options"], ensure_ascii=False), quiz["correct_index"],
-                         quiz["explanation"], json.dumps(quiz["source_citations"], ensure_ascii=False)))
+                     f'{study_minutes} {TEXT[selected_language]["minutes"]}', len(levels), len(lessons), len(curriculum["quizzes"]), len(curriculum["flashcards"]), selected_language))
+                added = append_curriculum(conn, course_id, curriculum)
+                if segments:
+                    save_plan(conn, book_id, segments)
+                    complete_segment(conn, book_id, 0, curriculum, added)
         saved = True
         return {"status": "ready", "book_id": book_id, "course_id": course_id, "title": display_title, "author": display_author,
             "language": selected_language, "detected_language": detection["language"], "language_confidence": detection["confidence"],

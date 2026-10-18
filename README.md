@@ -6,6 +6,8 @@ Versiunea curentă este un prototip funcțional, publicat pe Render la [fournext
 
 **Limitare observată la un PDF mare:** un document C++ de 127 de pagini, generat cu sesiunea de 120 de minute, a produs doar 3 lecții, 4 flashcarduri și 3 întrebări de quiz. Capturile arată și exemple care trebuie verificate pentru acuratețe semantică și fidelitatea citatelor. Generarea pentru documente mari este în evaluare și nu trebuie prezentată ca acoperire completă. Dovezile și handoff-ul tehnic sunt în [for_AI_Agents](for_AI_Agents/README.md) și [miscellaneous/ai-fail-2](miscellaneous/ai-fail-2/README.md).
 
+**Reparație nouă, distinctă de versiunea Live:** procesare pe segmente consecutive, plan salvat, continuare fără duplicate și verificare semantică separată. Starea testelor și a publicării este în [auditul din 18 octombrie](docs/audit_generare_segmentata.md).
+
 ## Funcții disponibile
 
 | Zonă | Ce funcționează |
@@ -28,15 +30,15 @@ Versiunea curentă este un prototip funcțional, publicat pe Render la [fournext
 
 Gemini este opțional și este apelat doar din backend, prin instrucțiuni pedagogice centrale. Documentele și întrebările sunt tratate ca date neîncrezute; modelul nu are instrumente sau dreptul de a executa acțiuni.
 
-**Explicațiile, cardurile și quizurile generate sunt păstrate** după validarea structurii, limbii și citărilor și un apel separat care verifică suportul în sursă. Serverul rezolvă identificatorii de citare la fragmentele originale; modelul nu inventează pagini. Această verificare reduce erorile, fără să garanteze adevărul fiecărei explicații. Fără furnizor disponibil sau la respingerea verificării, interfața afișează explicit că sunt disponibile doar extrase. Generarea folosește implicit `gemini-3.1-flash-lite` (`GEMINI_MODEL`), iar verificarea factuală un model separat, `gemini-3.8-flash` (`GEMINI_VERIFIER_MODEL`). Ideile-cheie nesusținute pot fi omise; o explicație nesusținută este respinsă.
+**Explicațiile, cardurile și quizurile generate sunt păstrate** după validarea structurii, limbii și citărilor și un apel separat care verifică suportul în sursă. Serverul rezolvă identificatorii de citare la fragmentele originale; modelul nu inventează pagini. Această verificare reduce erorile, fără să garanteze adevărul fiecărei explicații. Fără furnizor disponibil sau la respingerea verificării, interfața afișează explicit că sunt disponibile doar extrase. Generarea folosește implicit `gemini-3.1-flash-lite` (`GEMINI_MODEL`), iar verificarea factuală un model separat, `gemini-3.8-flash` (`GEMINI_VERIFIER_MODEL`). Sunt necesare separat suportul în sursă și validitatea semantică. Practica ambiguă și ideile-cheie nesusținute pot fi omise; o explicație invalidă se corectează o singură dată, în limita totală de 105 secunde, apoi se folosește fallbackul etichetat.
 
-Documentele lungi trimit către AI un context limitat la 75.000 de caractere, distribuit între toate paginile. Sesiunile scurte oferă o selecție sau un overview, cu avertisment înainte și după generare; nu promit parcurgerea întregii cărți. Extragerea PDF elimină caracterele suprapuse și watermarkurile diagonale mari, păstrând numerele reale ale paginilor. Pentru TXT/MD/DOCX/EPUB, reperele sunt secțiuni numerotate; pentru PDF sunt paginile extrase.
+Documentele de peste 24 pagini/secțiuni sau 75.000 caractere se procesează consecutiv, în părți de maximum 12 pagini și 12.000 caractere. Prima parte este creată la upload; proprietarul continuă din spațiul de studiu, cu plan și progres salvate. Durata influențează bugetul lecțiilor; paginile procesate și cele citate sunt raportate separat și nu garantează acoperire pedagogică integrală. Extragerea PDF elimină caracterele suprapuse și watermarkurile diagonale mari, păstrând numerele reale ale paginilor. Pentru TXT/MD/DOCX/EPUB, reperele sunt secțiuni numerotate; pentru PDF sunt paginile extrase.
 
 ## Limite și funcții viitoare
 
 Upload: maximum **15 MB în backend** (limita interfeței și a proxyului se configurează pentru deployment), **500 de pagini PDF**, **1.000.000 de caractere**; arhivele sunt limitate și după decomprimare. PDF-urile scanate necesită OCR înainte de încărcare. Fișierele DOC vechi trebuie convertite în DOCX. Limbile nesuportate sunt respinse explicit, fără traducere automată.
 
-Limite pe cont: 5 generări de materiale/minut și 30/zi; audio 3/minut și 20/zi; inspecție 10/minut; chat 15/minut. Maximum trei generări simultane pe proces și una pentru același cont. Cotele pentru upload/audio sunt păstrate în SQLite; concurența și limita chatului sunt locale procesului.
+Limite pe cont: 5 generări de materiale/minut și 30/zi; continuări de segment 12/minut și 100/zi; audio 3/minut și 20/zi; inspecție 10/minut; chat 15/minut. Maximum trei generări simultane pe proces și una pentru același cont. Cotele pentru upload/audio sunt păstrate în SQLite; concurența și limita chatului sunt locale procesului.
 
 **În pregătire:** identificarea programei oficiale, server AI propriu cu acces gratuit de bază, chei personale OpenAI/Claude/Gemini, camere cu tutor personalizat/antrenare, mod cinematic interactiv și bibliotecă de nișă cu acces plătit. Acestea necesită cercetare, infrastructură, licențe sau finanțare. Nu există abonamente, reduceri ori plăți active.
 
@@ -79,7 +81,7 @@ node --test tests/proxy.test.mjs
 npm run build
 ```
 
-Ultima verificare locală a sursei pregătite pentru Render: **89/89 teste backend**, **90% acoperire pentru codul activ**, **5/5 teste proxy frontend**, lint fără erori/avertismente, TypeScript și build reușite.
+Ultima verificare locală a sursei pregătite pentru Render: **104/104 teste backend**, **91% acoperire pentru codul activ**, **5/5 teste proxy frontend**, lint fără erori/avertismente, TypeScript și build reușite.
 
 Sunt testate autentificarea și expirarea sesiunilor, izolarea între conturi, publicarea/ratingurile, revocarea accesului în clase, limba/citările, atacurile prin documente, uploadurile, PDF-ul Unicode și limitele de utilizare. Testele folosesc baze temporare și modele simulate, fără servicii plătite. Acoperirea configurată exclude generatoarele video/diagrame moștenite care nu sunt conectate la fluxul curent. GitHub Actions rulează verificările pentru push pe `flavius`/`main` și pentru PR-uri.
 
@@ -107,4 +109,4 @@ Planul, pașii din Dashboard, configurația de mediu și verificările înainte 
 
 Proiectul evoluează din baza preexistentă Book2Sound/Book2Course. Această proveniență trebuie declarată în materialele de concurs. Prezentarea Canva și livrabilele finale de hackathon se pregătesc după stabilizarea demo-ului.
 
-Remedierea din 18 octombrie și rezultatele testelor reale pe Render sunt în [remediere_calitate_ai.md](docs/remediere_calitate_ai.md). Aplicația Live rulează codul `b2579fc`, verificat prin [CI 39073364778](https://github.com/archimex2026/4next/actions/runs/39073364778). Materialele create cu vechiul generator trebuie reîncărcate pentru a folosi noua extracție și noile explicații.
+Remedierea din 18 octombrie și rezultatele testelor reale pe Render sunt în [remediere_calitate_ai.md](docs/remediere_calitate_ai.md). Versiunea Live inspectată la începutul auditului rulează codul `b2579fc`, verificat prin [CI 39073364778](https://github.com/archimex2026/4next/actions/runs/39073364778). Materialele create cu vechiul generator trebuie reîncărcate pentru a folosi noua extracție și noile explicații.

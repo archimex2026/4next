@@ -225,6 +225,13 @@ def init_db():
         text TEXT NOT NULL, color TEXT NOT NULL DEFAULT 'yellow', created_at TEXT DEFAULT CURRENT_TIMESTAMP
     );
     CREATE INDEX IF NOT EXISTS idx_books_owner ON books(owner_id);
+    CREATE TABLE IF NOT EXISTS generation_segments (
+        book_id TEXT NOT NULL REFERENCES books(id) ON DELETE CASCADE,
+        segment_index INTEGER NOT NULL, spans TEXT NOT NULL, study_minutes INTEGER NOT NULL,
+        status TEXT NOT NULL DEFAULT 'pending', generation_mode TEXT,
+        cited_pages TEXT NOT NULL DEFAULT '[]', lesson_count INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY(book_id, segment_index)
+    );
     CREATE INDEX IF NOT EXISTS idx_books_deleted_at ON books(deleted_at);
     CREATE TABLE IF NOT EXISTS trash_file_cleanup (
         kind TEXT NOT NULL, name TEXT NOT NULL, PRIMARY KEY(kind,name)

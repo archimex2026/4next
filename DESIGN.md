@@ -15,6 +15,8 @@ Direcție: un caiet personal, cald și aerisit. Referința Notion din Awesome DE
 
 Componentele și API-ul existente sunt reutilizate. Nu sunt introduse biblioteci suplimentare.
 
+Procesarea documentelor mari folosește aceeași suprafață de caiet: progres nativ accesibil, stare anunțată discret, plan cu paginile fiecărei părți și acțiune explicită de continuare/oprire. Paginile procesate se disting de paginile citate; finalizarea procesării nu se prezintă drept acoperire pedagogică integrală. Modul mixt etichetează explicațiile AI și extrasele separat în plan.
+
 ## Spațiul de studiu după brainstorming
 
 - Un singur spațiu cu lecții, sursă și evidențieri, flashcarduri, verificare prin quiz și întrebări cu citări. Audio și video completează lecția numai când există fișiere reale.

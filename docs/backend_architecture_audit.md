@@ -1,5 +1,7 @@
 # Auditul planului de backend 4Next
 
+Actualizare 18 octombrie: tabelul de mai jos descrie baza precedentă. Procesarea pe segmente, migrarea aditivă, noul verdict semantic și verificările curente sunt în [audit_generare_segmentata.md](audit_generare_segmentata.md). Rescrierea în ORM sau introducerea unei cozi distribuite nu sunt necesare pentru serviciul demo cu un singur worker.
+
 Audit al bazei funcționale din 17 octombrie 2026, actualizat pentru migrarea Render. Integrarea fast-forward din `flavius` în `main` și push-ul sunt realizate. Planul de referință este `H:\4Next\backend_architecture_plan.md`, redactat înaintea implementării conturilor și a spațiului de studiu. Tabelul compară toate cele 30 de puncte ale planului cu implementarea reală. O alternativă funcțională nu înseamnă că tehnologia propusă există deja.
 
 | Nr | Cerință din plan | Stare și dovadă în cod | Diferență sau pas rămas |

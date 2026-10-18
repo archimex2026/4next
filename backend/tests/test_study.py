@@ -228,7 +228,7 @@ class StudyServicesTests(unittest.TestCase):
 
     def test_ai_curriculum_only_accepted_with_validated_source_and_language(self):
         curriculum = build_content_aware_curriculum("Biologie", "", RO_TEXT, language="ro")
-        with patch("app.services.ai_analyzer.gemini_json", return_value=curriculum), patch("app.services.study_ai.gemini_json", return_value={"supported": True}):
+        with patch("app.services.ai_analyzer.gemini_json", return_value=curriculum), patch("app.services.study_ai.gemini_json", return_value={"supported": True, "semantically_valid": True}):
             valid = asyncio.run(analyze_book_with_gemini("Biologie", "", RO_TEXT, language="ro"))
         self.assertEqual(valid["generation_mode"], "ai_grounded")
         curriculum["levels"][0]["lessons"][0]["long_explanation"] = "Fotosinteza produce aur în anul 2200. " * 5

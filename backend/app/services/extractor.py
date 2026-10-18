@@ -84,7 +84,9 @@ def extract_document(file_path: Path, file_type: str) -> dict:
                         return not (obj.get("object_type") == "char" and obj.get("size", 0) > body_size * 2.5
                                     and abs(matrix[1]) > .1 and abs(matrix[2]) > .1)
                     clean_page = page.filter(is_content).dedupe_chars(tolerance=1, extra_attrs=())
-                    text = _clean(clean_page.extract_text(x_tolerance=2, y_tolerance=3) or "")
+                    # Follow PDF text objects rather than interleaving side-by-side
+                    # code and commentary at the same vertical coordinate.
+                    text = _clean(clean_page.extract_text(x_tolerance=2, y_tolerance=3, use_text_flow=True) or "")
                     total_characters += len(text)
                     if total_characters > MAX_TEXT_CHARACTERS:
                         raise ExtractionError("Textul depășește limita de 1.000.000 de caractere. Împarte PDF-ul în părți.")

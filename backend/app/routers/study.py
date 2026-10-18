@@ -11,6 +11,9 @@ from app.database import get_db_connection
 from app.security import optional_user, require_user, check_course_access, can_read_book
 from app.services.study_ai import answer_from_source, TEXT, extract_keywords, tokens
 from app.services.pdf_export import render_study_pdf
+from app.services.ai_analyzer import analyze_book_with_gemini
+from app.services.segmented_generation import segment_pages, segment_target, generation_progress, complete_segment, append_curriculum
+from app.generation_limits import generation_slot
 
 router = APIRouter(prefix="/api/study", tags=["Study workspace"])
 _chat_requests = defaultdict(deque)
@@ -29,12 +32,51 @@ def _source(conn, course_id, user):
 def get_source(course_id: str, user=Depends(optional_user)):
     with closing(get_db_connection()) as conn:
         course, book, pages = _source(conn, course_id, user)
+        progress = generation_progress(conn, book['id'])
     return {"title": book["title"], "language": book["language"], "pages": pages,
         "page_kind": "page" if book.get("file_type") == "pdf" else "section",
         "keywords": json.loads(book.get("keywords") or "[]"), "study_minutes": book.get("study_minutes", 20),
         "focus_keywords": json.loads(book.get("focus_keywords") or "[]"),
         "depth": book.get("depth", "standard"), "generation_mode": book.get("generation_mode", "legacy"),
-        "source_available": bool(pages)}
+        "source_available": bool(pages), "generation_progress": progress}
+
+
+class ContinueGeneration(BaseModel):
+    segment_index: int = Field(ge=0)
+
+
+@router.post('/{course_id}/generate-next')
+async def generate_next(course_id: str, payload: ContinueGeneration, user=Depends(require_user)):
+    # The client sends the expected index: replaying a lost response never appends twice.
+    with closing(get_db_connection()) as conn:
+        course = check_course_access(conn, course_id, user, write=True)
+        book = dict(conn.execute('SELECT * FROM books WHERE id=?', (course['book_id'],)).fetchone())
+        row = conn.execute('SELECT * FROM generation_segments WHERE book_id=? AND segment_index=?',
+            (book['id'], payload.segment_index)).fetchone()
+        if not row:
+            raise HTTPException(404, 'Segmentul de generare nu există.')
+        if row['status'] == 'completed':
+            return generation_progress(conn, book['id'])
+        progress = generation_progress(conn, book['id'])
+        if payload.segment_index != progress['next_index']:
+            raise HTTPException(409, 'Continuă cu primul segment rămas în plan.')
+        segment = dict(row)
+        pages = segment_pages(segment, json.loads(book['source_pages']))
+        topics = [r[0] for r in conn.execute('SELECT title FROM lessons WHERE course_id=?', (course_id,))]
+    with generation_slot(user['id'], 'segment'):
+        curriculum = await analyze_book_with_gemini(book['title'], book['author'], '\n\n'.join(p['text'] for p in pages),
+            language=book['language'], source_pages=pages, study_minutes=segment['study_minutes'], depth=book['depth'],
+            focus_keywords=json.loads(book['focus_keywords']), lesson_target=segment_target(segment), previous_topics=topics)
+        with closing(get_db_connection()) as conn, conn:
+            conn.execute('BEGIN IMMEDIATE')
+            # Access can be revoked or the material trashed while the provider runs.
+            check_course_access(conn, course_id, user, write=True)
+            row = conn.execute('SELECT status FROM generation_segments WHERE book_id=? AND segment_index=?',
+                (book['id'], payload.segment_index)).fetchone()
+            if row['status'] != 'completed':
+                added = append_curriculum(conn, course_id, curriculum)
+                complete_segment(conn, book['id'], payload.segment_index, curriculum, added)
+            return generation_progress(conn, book['id'])
 
 
 class ChatInput(BaseModel):

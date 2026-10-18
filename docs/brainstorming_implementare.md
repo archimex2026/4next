@@ -1,5 +1,7 @@
 # 4Next — brainstorming și urmărirea implementării
 
+Actualizare 18 octombrie: [auditul nou](audit_generare_segmentata.md) este referința pentru procesarea pe segmente și verificările curente. Secțiunile de mai jos păstrează cronologia; checklistul migrării se referă la versiunea Live b2579fc, nu certifică publicarea noii reparații.
+
 Sursă: whiteboardul echipei și lista organizată de Flavius, transmise după sesiunea de brainstorming. Acest document păstrează toate ideile, inclusiv extensiile pentru pitch. Completează [direcția de produs](directie_produs_4next.md), fără a transforma ideile viitoare în promisiuni de funcționalitate disponibilă.
 
 ## Plan de implementare
@@ -76,7 +78,7 @@ Sursa verificată este integrată fast-forward și publicată pe `main` și `fla
 - [x] Gemini real: cheie verificată și un upload text în modul ai_grounded. Un apel public ulterior a primit eroare temporară de furnizor și a folosit corect extragerea locală.
 - [ ] TTS cu servicii reale: integrarea premium se coordonează cu Ionuț; nu este declarată validată end-to-end.
 - [x] Demo Vercel anterior verificat, cu backend pe PC; această arhitectură a fost abandonată după erori 502 cauzate de sleep.
-- [ ] Migrare integrală Render Free, independentă de PC, cu resetarea datelor acceptată de echipă.
+- [x] Migrare integrală Render Free, independentă de PC, cu resetarea datelor acceptată de echipă.
 - [ ] Găzduire permanentă, verificare email/recuperare parolă, proceduri juridice finale și infrastructură multi-worker.
 - [ ] Funcțiile F01–F06 și maparea la programa oficială, după cercetare/finanțare.
 - [ ] Prezentarea Canva și confirmarea eligibilității bazei preexistente conform regulamentului.
@@ -109,10 +111,10 @@ Runda din 17 octombrie adaugă cerințele din `H:\4Next\citeste_asta.txt`. Fiși
 - [x] Citirea tuturor paginilor și randarea templateului PPTX, fără modificare; structură în [prezentare_template.md](prezentare_template.md).
 - [x] Actualizarea documentului Word de proiect; validare structurală și verificare vizuală a tuturor celor șase pagini după export PDF printr-o instanță Microsoft Word proprie, ascunsă și închisă la final. PDF/PNG sunt doar intermediari locali de QA.
 - [x] Istoric: backend demo pe PC, secret Gemini pe server și verificări HTTPS/cookie/CORS; a fost înlocuit ca direcție de găzduire după incidentul 502.
-- [ ] Migrarea interfeței și backendului într-un singur serviciu Render; verificare independentă de PC și verificarea resetării așteptate a datelor după restart/redeploy.
+- [x] Migrarea interfeței și backendului într-un singur serviciu Render; verificare independentă de PC și verificarea resetării așteptate a datelor după restart/redeploy.
 - [x] Diferențele verificate, merge fast-forward și push pe `main`; configurația Free validată în preview și publicată pe ambele branch-uri.
 - [x] Istoric: `4next.vercel.app` era ocupat și s-a folosit `4next-study.vercel.app`. Acest URL nu mai este adresa oficială.
-- [ ] Confirmarea noii adrese Render numai după deployment verificat.
+- [x] Confirmarea noii adrese Render numai după deployment verificat.
 
 Ionuț lucrează separat la audio/video. Pipelineul premium Gemini TTS, normalizarea audio și modul video nu se declară integrate înainte de review și testare. Un coleg explorează ILOVEAPI pentru conversie PDF; exportul curent funcționează local cu fpdf2, fără cheie de conversie. Nu suprapunem aceste direcții prin înlocuiri speculative.
 
@@ -131,19 +133,19 @@ Verificarea publică anterioară pe Vercel a trecut: login HTTPS, upload PDF pub
 Conversația adăugată de Flavius confirmă că echipa a primit 502 după ce PC-ul a intrat în sleep. Decizia actuală abandonează găzduirea Vercel cu tunel local și mută interfața și API-ul pe Render. Verificările istorice rămân utile pentru funcții, dar nu dovedesc disponibilitatea noii găzduiri.
 
 - [x] Sursă pregătită pentru un Web Service Docker: Next.js public pe `PORT`, FastAPI intern pe `127.0.0.1:8000`; verificarea imaginii este separată.
-- [ ] Proxy `/api` și `/media` pe aceeași origine; cookie Secure/HttpOnly și originea exactă permisă.
-- [ ] Datele demo temporare sub `/var/data`: SQLite, uploaduri și media; mesaj vizibil despre resetare.
+- [x] Proxy `/api` și `/media` pe aceeași origine; cookie Secure/HttpOnly și originea exactă permisă.
+- [x] Datele demo temporare sub `/var/data`: SQLite, uploaduri și media; mesaj vizibil despre resetare.
 - [x] `render.yaml`, Dockerfile.render și supervisor în repo, fără chei/baze/date personale în context; schemă oficială validată local.
 - [x] Teste locale pentru supervisor, health check și izolarea variabilelor; lint, TypeScript și build de producție trecute.
 - [x] Jobul CI real Docker build și smoke test imagine, plus backend/frontend: toate trecute în run 39066911100.
-- [ ] Verificarea deploymentului Render și a logurilor cloud fără secrete.
+- [x] Verificarea deploymentului Render și a logurilor cloud fără secrete.
 - [x] Cont Render autentificat de utilizator.
-- [x] Repository accesibil, Blueprint validat și serviciu Docker Free creat în Dashboard; redeploymentul corecției de timeout este în curs.
+- [x] Repository accesibil, Blueprint validat și serviciu Docker Free creat în Dashboard; corecția de timeout a fost publicată și verificată în runda anterioară.
 - [x] Alegere explicită: Render Free, fără disc, cu resetarea datelor acceptată; niciun plan cu plată activat.
 - [x] Secret Gemini transferat în Render Environment cu aprobarea utilizatorului, fără prefix `NEXT_PUBLIC_` și fără publicarea cheii. Erorile furnizorului folosesc fallback extractiv etichetat.
-- [ ] URL Render, login și upload PDF verificate; chat cu citare/refuz, toate exporturile, grup și coș restaurate corect.
-- [ ] Funcționare fără backendul PC-ului; la restart/redeploy se acceptă resetarea datelor, iar contul poate fi recreat fără parolă implicită în cod.
-- [ ] Rezultatele și URL-ul final actualizate în README, aceste documente și Word; Canva rămâne ulterior.
+- [x] URL Render, login și upload PDF verificate; chat cu citare/refuz, toate exporturile, grup și coș restaurate corect.
+- [x] Funcționare fără backendul PC-ului; la restart/redeploy se acceptă resetarea datelor, iar contul poate fi recreat fără parolă implicită în cod.
+- [x] Rezultatele și URL-ul final actualizate în README, aceste documente și Word; Canva rămâne ulterior.
 
 Pașii concreți de configurare și criteriile de acceptare sunt în [deployment_demo.md](deployment_demo.md). Sursa pregătită pentru Render a trecut 78/78 teste backend, 90% cod activ și 5/5 teste proxy, plus lint, TypeScript și build. Testarea imaginii Docker și verificările live rămân distincte.
 

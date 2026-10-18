@@ -1,5 +1,7 @@
 # Lansarea 4Next pe Render
 
+Verificare 18 octombrie: serviciul Live rulează `b2579fc`; homepage, health și catalog public răspund 200. Secțiunile istorice de mai jos păstrează verificările lansării inițiale. Reparația nouă pentru documente mari este descrisă separat în [audit_generare_segmentata.md](audit_generare_segmentata.md); testele locale nu confirmă singure publicarea ei.
+
 ## Decizia actuală și starea verificării
 
 Echipa a abandonat demo-ul Vercel care trimitea cererile către un backend de pe PC: după sleep, colegii au primit 502. Noua țintă găzduiește interfața și API-ul împreună pe **Render Free**, fără dependență de PC sau tunel. Utilizatorul s-a autentificat în Render și a ales explicit varianta gratuită, acceptând resetarea datelor. Nu activăm un plan cu plată.

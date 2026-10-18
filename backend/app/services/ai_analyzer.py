@@ -89,7 +89,14 @@ def build_content_aware_curriculum(book_title, author, extracted_text, language=
     language = resolve_language(extracted_text, language)["language"]
     labels = TEXT[language]
     pages = source_pages or [{"page": 1, "text": extracted_text}]
+    if not any(page['text'].strip() for page in pages):
+        return {'title': f'{labels["course"]}: {book_title}', 'subtitle': labels['subtitle'], 'overview': labels['overview'],
+            'target_audience': labels['audience'], 'estimated_duration': f'{study_minutes} {labels["minutes"]}',
+            'levels': [], 'flashcards': [], 'quizzes': [], 'keywords': [], 'language': language, 'generation_mode': 'extractive'}
     fragments = list(source_fragments(pages))
+    substantive = [fragment for fragment in fragments if len(fragment['text'].split()) >= 12]
+    if substantive:
+        fragments = substantive
     if not fragments:
         fragments = [{"page": pages[0]["page"], "text": extracted_text.strip()}]
     keywords = extract_keywords(extracted_text)
@@ -144,30 +151,60 @@ def build_content_aware_curriculum(book_title, author, extracted_text, language=
 
 
 async def analyze_book_with_gemini(book_title, author, extracted_text, language=None, source_pages=None,
-                                 study_minutes=20, depth="standard", focus_keywords=None):
+                                 study_minutes=20, depth="standard", focus_keywords=None, lesson_target=None, previous_topics=None):
     language = (await asyncio.to_thread(resolve_language, extracted_text, language))["language"]
     pages = source_pages or [{"page": 1, "text": extracted_text}]
-    data = None
+    if not extracted_text.strip():
+        return build_content_aware_curriculum(book_title, author, extracted_text, language, pages, study_minutes, depth, focus_keywords)
     context = [{**item, "source_id": f"e{index}"} for index, item in enumerate(source_fragments(study_context(pages)))]
-    data = await gemini_json(
+    task = (
             "Create a focused study course in the document language. Respect the study time, depth and selected keywords. "
             "Use only document facts, patient teacher explanations, retrieval questions and source-based quizzes. "
             "Preserve negations, qualifications and distinctions exactly in meaning. Every individual key idea must "
             "be directly supported by its citations, not merely related to the same topic. Avoid contradictory summaries. "
             "Scan ALL supplied pages before choosing a coherent sequence of topics. With a short session, give an overview "
             "across the document, not just its first page. Teach the subject, not the contents list or epigraph. "
-            "Write at most " + str(min(12, math.ceil(study_minutes/5))) + " lessons, each with a distinct meaningful title, "
-            "a 100-180 word step-by-step explanation, key ideas, and an understanding check. "
+            + ("Write exactly " + str(lesson_target) if lesson_target else "Write at most " + str(min(12, math.ceil(study_minutes/5)))) +
+            " lessons, each with a distinct meaningful title, key ideas, and an understanding check. "
+            "For brief depth use 70-100 words, standard 100-180 words, deep 180-260 words per explanation. "
+            "This may be one consecutive segment of a larger source. Teach its substantive topics; do not repeat previous_topics. "
             "Create 4-8 useful flashcards and 3-6 conceptual multiple-choice questions. Avoid random missing-word quizzes. "
             "For every citation copy its source_id and page from source_pages; leave text empty. The server resolves "
             "the ID to the exact source text. Never invent citation IDs. Keep code readable. Do not duplicate quoted text in every field. "
-            "Do not claim to cover the complete document if the study time is short. Return JSON matching this schema: " + json.dumps(Curriculum.model_json_schema()),
-            {"title": book_title, "author": author, "source_pages": context, "study_minutes": study_minutes, "depth": depth, "focus_keywords": focus_keywords or []}, language,
+            "Do not claim to cover the complete document if the study time is short. Return JSON matching this schema: " + json.dumps(Curriculum.model_json_schema())
         )
-    if isinstance(data, dict):
+    payload = {"title": book_title, "author": author, "source_pages": context, "study_minutes": study_minutes, "depth": depth,
+               "focus_keywords": focus_keywords or [], "previous_topics": previous_topics or []}
+    deadline = asyncio.get_running_loop().time() + 105
+    previous = None
+    feedback = []
+    for attempt in range(2):
+        remaining = deadline - asyncio.get_running_loop().time()
+        if attempt and remaining < 20:
+            break
+        request_payload = payload if not attempt else {**payload, 'previous_response': previous, 'verification_feedback': feedback}
+        request_task = task if not attempt else task + ' Correct the rejected previous_response using verification_feedback; keep only supported, precise teaching.'
+        try:
+            data = await asyncio.wait_for(gemini_json(request_task, request_payload, language), timeout=max(.1, remaining))
+        except asyncio.TimeoutError:
+            break
+        if not isinstance(data, dict):
+            break
+        previous = data
+        feedback = []
         stage = "schema"
         try:
-            result = Curriculum.model_validate(data).model_dump()
+            result = Curriculum.model_validate({**data, 'flashcards': [], 'quizzes': []}).model_dump()
+            for field, schema, maximum in [('flashcards', Card, 24), ('quizzes', Quiz, 16)]:
+                if isinstance(data.get(field), list):
+                    for item in data[field][:maximum]:
+                        try:
+                            result[field].append(schema.model_validate(item).model_dump())
+                        except ValueError:
+                            continue
+            minimum = min(lesson_target, max(1, math.ceil(study_minutes/8))) if lesson_target else 1
+            if sum(len(level["lessons"]) for level in result["levels"]) < minimum:
+                raise ValueError("Insufficient lessons for this segment's study budget")
             stage = "citations/language"
             items = [lesson for level in result["levels"] for lesson in level["lessons"]] + result["flashcards"] + result["quizzes"]
             for index, item in enumerate(items):
@@ -193,17 +230,30 @@ async def analyze_book_with_gemini(book_title, author, extracted_text, language=
                         validate_output_language(value, language)
                 if "correct_index" in item and item["correct_index"] >= len(item["options"]):
                     raise ValueError("Invalid quiz index")
+                if 'options' in item and len({' '.join(v.casefold().split()) for v in item['options']}) != len(item['options']):
+                    result['quizzes'].remove(item)
+                    continue
                 # Render no provider-authored executable diagram syntax in the MVP.
                 if "mermaid_diagram" in item:
                     item["mermaid_diagram"] = ""
             validate_output_language(" ".join(result[field] for field in ["title", "subtitle", "overview", "target_audience"]), language)
             stage = "evidence-check"
             items = [lesson for level in result["levels"] for lesson in level["lessons"]] + result["flashcards"] + result["quizzes"]
-            if not await verify_teaching(items, language, context):
+            if not await asyncio.wait_for(verify_teaching(items, language, context, feedback),
+                                           timeout=max(.1, deadline-asyncio.get_running_loop().time())):
                 raise ValueError("Unsupported teaching content")
+            result['flashcards'] = [item for item in result['flashcards'] if item in items]
+            result['quizzes'] = [item for item in result['quizzes'] if item in items]
             result.update(keywords=extract_keywords(extracted_text), language=language,
                           generation_mode="ai_grounded", generation_detail="ai_explained_source")
             return result
+        except asyncio.TimeoutError:
+            break
         except (ValueError, TypeError, KeyError):
-            logger.warning("Teaching output rejected at %s; using labelled excerpts", stage)
+            logger.warning('Teaching output rejected at %s (attempt %s)', stage, attempt + 1)
+            if stage == 'evidence-check' and not feedback:
+                # A missing verifier or quota error is not repairable teaching.
+                break
+            if not feedback:
+                feedback = [f'Output failed validation at {stage}. Check the schema, citations, language and study budget.']
     return await asyncio.to_thread(build_content_aware_curriculum, book_title, author, extracted_text, language, pages, study_minutes, depth, focus_keywords)

@@ -33,6 +33,8 @@ Artefactele locale de test sunt în `H:\4Next\artifact-qa\ai-fix`, în afara Git
 
 ## Limite și pași rămași
 
+Pentru incidentul ulterior cu 127 pagini, acest raport este istoric. [Auditul și remedierea pe segmente](audit_generare_segmentata.md) adaugă stare/progres, reluare și un verdict semantic separat; publicarea și verificările noi sunt consemnate acolo.
+
 - Verificarea automată reduce erorile; nu garantează corectitudinea pedagogică sau factuală a fiecărei explicații. Un set de evaluare cu profesori/elevi rămâne necesar.
 - Dacă modelul, cheia sau verificarea nu sunt disponibile, aplicația oferă extrase etichetate, nu pretinde că a produs o lecție AI.
 - Materialele generate anterior păstrează conținutul vechi în baza de date. Pentru a beneficia de corecția extracției și a generării, documentul trebuie reîncărcat. Nu se șterg automat notițe sau progres.

@@ -160,6 +160,7 @@ export interface SourcePage {
     text: string;
 }
 export interface StudySource {
+    generation_progress?: GenerationProgress | null;
     title: string;
     language: string;
     pages: SourcePage[];
@@ -169,6 +170,22 @@ export interface StudySource {
     study_minutes: number;
     depth: string;
     generation_mode: string;
+}
+export interface GenerationProgress {
+    completed: number;
+    total: number;
+    processed_pages: number[];
+    cited_pages: number[];
+    next_index: number | null;
+    planned_minutes: number;
+    segments: {
+        index: number;
+        pages: number[];
+        status: 'pending' | 'completed';
+        generation_mode: string | null;
+        cited_pages: number[];
+        lesson_count: number;
+    }[];
 }
 export interface Highlight {
     id: string;

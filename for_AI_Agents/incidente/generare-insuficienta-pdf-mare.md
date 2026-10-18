@@ -2,7 +2,7 @@
 
 Data raportării: 18 octombrie 2026
 
-Stare: **deschis; nu implementați fără reproducere**
+Stare: **reprodus și remediat în sursa locală; validarea finală și publicarea se urmăresc în [raportul nou](../../docs/audit_generare_segmentata.md)**. Observațiile și cererea de documentare de mai jos descriu sesiunea inițială, nu o interdicție pentru o cerere ulterioară de remediere.
 
 Sursă raportată: `H:\4Next\Lecture_2_Programming_Fundamentals_in_C++.pdf`, 127 pagini, programare C++
 
