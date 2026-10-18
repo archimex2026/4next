@@ -54,3 +54,9 @@ delete: `backend/app/services/diagram_generator.py` (41 linii), fără apelanți
 net: -529 lines, -0 deps possible. Aceste ștergeri nu au fost aplicate în reparație.
 
 Codul reparației este publicat pe branch-ul `flavius`. [CI pentru e691461](https://github.com/archimex2026/4next/actions/runs/39118822838) a trecut backend, frontend și imaginea Docker cu smoke test. Corecția suplimentară a numărătorilor are propriile verificări la push. Integrarea GitHub a refuzat crearea PR-ului cu 403 (`Resource not accessible by integration`); nu a fost creat un PR și nu s-a declanșat deploymentul Render.
+
+## Integrarea și deploymentul verificate
+
+La cererea explicită ulterioară a utilizatorului, `main` a fost actualizat prin fast-forward la `9e499c55b3d7f68cf33ca796640648af1c7d4e89`. Crearea PR-ului a rămas blocată cu 403, însă accesul Git a permis integrarea fără force push. Render a publicat exact acest commit: deployment `dep-dba9uabrjlhs739ffrag`, **Live** din 18 octombrie 2026, 13:29:31 Europe/Bucharest. Paragrafele de mai sus despre lipsa publicării descriu starea de la finalul auditului inițial.
+
+Verificări publice trecute: homepage și mesajul Free, health/SQLite, catalog, export PDF, înregistrare QA, upload PDF sintetic de 25 pagini, plan de trei segmente, continuare la 2/3 și repetarea aceleiași cereri fără duplicate. Sursa privată este inaccesibilă anonim (404); UI-ul afișează corect 24 pagini procesate și zero pagini citate pentru segmentele goale. Materialul QA a fost mutat în coș și accesul a fost revocat. Testul nu a apelat Gemini și nu înlocuiește evaluarea pedagogică reală. Logurile de eroare după publicare au fost goale. Planul Free și configurarea secretelor au rămas neschimbate.

@@ -1,6 +1,6 @@
 # Lansarea 4Next pe Render
 
-Verificare 18 octombrie: serviciul Live rulează `b2579fc`; homepage, health și catalog public răspund 200. Secțiunile istorice de mai jos păstrează verificările lansării inițiale. Reparația nouă pentru documente mari este descrisă separat în [audit_generare_segmentata.md](audit_generare_segmentata.md); testele locale nu confirmă singure publicarea ei.
+Verificare 18 octombrie: serviciul Live rulează `9e499c5`, deployment `dep-dba9uabrjlhs739ffrag`; homepage, health, catalog, PDF și continuarea idempotentă pe segmente au trecut testele publice. Secțiunile istorice de mai jos păstrează verificările lansării inițiale. Reparația nouă pentru documente mari este descrisă separat în [audit_generare_segmentata.md](audit_generare_segmentata.md); testele locale nu confirmă singure publicarea ei.
 
 ## Decizia actuală și starea verificării
 

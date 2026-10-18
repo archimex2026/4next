@@ -15,7 +15,7 @@ Citește acest fișier la începutul unei sesiuni de lucru în repo. Apoi citeș
 
 ## Probleme active
 
-Actualizare după audit: procesarea consecutivă, planul salvat, continuarea și verificarea semantică separată sunt implementate local. Citește [raportul din 18 octombrie](../docs/audit_generare_segmentata.md) pentru dovezi, limite și starea publicării. Nu confunda versiunea Live `b2579fc` cu sursa modificată și nu considera toate materialele drept explicații AI: modul poate fi mixt.
+Actualizare după audit: procesarea consecutivă, planul salvat, continuarea și verificarea semantică separată sunt implementate și publicate pe Render în commitul `9e499c5`. Citește [raportul din 18 octombrie](../docs/audit_generare_segmentata.md) pentru dovezi, limite și starea publicării. Versiunea Live este `9e499c5`; `b2579fc` este versiunea precedentă și nu considera toate materialele drept explicații AI: modul poate fi mixt.
 
 Incidentul urgent este în [incidente/generare-insuficienta-pdf-mare.md](incidente/generare-insuficienta-pdf-mare.md), susținut de capturile din [miscellaneous/ai-fail-2](../miscellaneous/ai-fail-2/README.md). Nu considera un rezultat bun doar pentru că trece verificarea citărilor sau pentru că Gemini răspunde în engleză fluentă. Verifică acoperirea tuturor segmentelor, corectitudinea semantică și calitatea efectivă a lecțiilor, cardurilor și quizurilor.
 

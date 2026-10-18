@@ -2,11 +2,11 @@
 
 4Next este un spațiu de studiu pentru elevi și studenți: adaugi materialele tale, alegi conceptele, timpul și profunzimea, apoi studiezi prin lecții, flashcarduri, quizuri și întrebări ancorate în sursă. Pregătirea pentru examene este direcția produsului.
 
-Versiunea curentă este un prototip funcțional, publicat pe Render la [fournext-study.onrender.com](https://fournext-study.onrender.com). Interfața și API-ul rulează împreună, independent de calculatorul echipei. Fluxurile cloud testate includ autentificarea, uploadul PDF, generarea extractivă/AI, citările, exporturile PDF, studiul și clasele. Demo-ul folosește planul Free: datele pot fi resetate, iar furnizorul Gemini poate fi indisponibil; în acel caz este folosit fallbackul extractiv etichetat. Demo-ul Vercel anterior este retras din rolul de adresă oficială. Baza versiunii Live este integrată și publicată pe **main** și **flavius**; reparația nouă este publicată separat pe **flavius**; funcțiile pentru finanțare sunt prezentate separat în pagina „Ce urmează”.
+Versiunea curentă este un prototip funcțional, publicat pe Render la [fournext-study.onrender.com](https://fournext-study.onrender.com). Interfața și API-ul rulează împreună, independent de calculatorul echipei. Fluxurile cloud testate includ autentificarea, uploadul PDF, generarea extractivă/AI, citările, exporturile PDF, studiul și clasele. Demo-ul folosește planul Free: datele pot fi resetate, iar furnizorul Gemini poate fi indisponibil; în acel caz este folosit fallbackul extractiv etichetat. Demo-ul Vercel anterior este retras din rolul de adresă oficială. Codul verificat este integrat pe **main** și **flavius**; funcțiile pentru finanțare sunt prezentate separat în pagina „Ce urmează”.
 
 **Limitare observată la un PDF mare:** un document C++ de 127 de pagini, generat cu sesiunea de 120 de minute, a produs doar 3 lecții, 4 flashcarduri și 3 întrebări de quiz. Capturile arată și exemple care trebuie verificate pentru acuratețe semantică și fidelitatea citatelor. Generarea pentru documente mari este în evaluare și nu trebuie prezentată ca acoperire completă. Dovezile și handoff-ul tehnic sunt în [for_AI_Agents](for_AI_Agents/README.md) și [miscellaneous/ai-fail-2](miscellaneous/ai-fail-2/README.md).
 
-**Reparație nouă, distinctă de versiunea Live:** procesare pe segmente consecutive, plan salvat, continuare fără duplicate și verificare semantică separată. Starea testelor și a publicării este în [auditul din 18 octombrie](docs/audit_generare_segmentata.md).
+**Reparație publicată pe Render în 18 octombrie, commit `9e499c5`:** procesare pe segmente consecutive, plan salvat, continuare fără duplicate și verificare semantică separată. Starea testelor și a publicării este în [auditul din 18 octombrie](docs/audit_generare_segmentata.md).
 
 ## Funcții disponibile
 
@@ -109,4 +109,6 @@ Planul, pașii din Dashboard, configurația de mediu și verificările înainte 
 
 Proiectul evoluează din baza preexistentă Book2Sound/Book2Course. Această proveniență trebuie declarată în materialele de concurs. Prezentarea Canva și livrabilele finale de hackathon se pregătesc după stabilizarea demo-ului.
 
-Remedierea din 18 octombrie și rezultatele testelor reale pe Render sunt în [remediere_calitate_ai.md](docs/remediere_calitate_ai.md). Versiunea Live inspectată la începutul auditului rulează codul `b2579fc`, verificat prin [CI 39073364778](https://github.com/archimex2026/4next/actions/runs/39073364778). Materialele create cu vechiul generator trebuie reîncărcate pentru a folosi noua extracție și noile explicații.
+Remedierea din 18 octombrie și rezultatele testelor reale pe Render sunt în [remediere_calitate_ai.md](docs/remediere_calitate_ai.md). Versiunea Live inspectată la începutul auditului rula codul `b2579fc`, verificat prin [CI 39073364778](https://github.com/archimex2026/4next/actions/runs/39073364778). Materialele create cu vechiul generator trebuie reîncărcate pentru a folosi noua extracție și noile explicații.
+
+Deploymentul reparației `9e499c5` este **Live**, ID `dep-dba9uabrjlhs739ffrag`. Verificările publice au trecut pentru homepage, health/SQLite, catalog, PDF, cont QA, upload, plan pe segmente, continuare idempotentă și acces privat. Materialul sintetic a fost mutat în coș după test; nu au fost necesare apeluri Gemini pentru acest smoke test.
