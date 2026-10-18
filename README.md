@@ -2,7 +2,7 @@
 
 4Next este un spațiu de studiu pentru elevi și studenți: adaugi materialele tale, alegi conceptele, timpul și profunzimea, apoi studiezi prin lecții, flashcarduri, quizuri și întrebări ancorate în sursă. Pregătirea pentru examene este direcția produsului.
 
-Versiunea curentă este un prototip funcțional, publicat pe Render la [fournext-study.onrender.com](https://fournext-study.onrender.com). Interfața și API-ul rulează împreună, independent de calculatorul echipei. Fluxurile cloud testate includ autentificarea, uploadul PDF, generarea extractivă/AI, citările, exporturile PDF, studiul și clasele. Demo-ul folosește planul Free: datele pot fi resetate, iar furnizorul Gemini poate fi indisponibil; în acel caz este folosit fallbackul extractiv etichetat. Demo-ul Vercel anterior este retras din rolul de adresă oficială. Sursa verificată este integrată și publicată pe **main** și **flavius**; funcțiile pentru finanțare sunt prezentate separat în pagina „Ce urmează”.
+Versiunea curentă este un prototip funcțional, publicat pe Render la [fournext-study.onrender.com](https://fournext-study.onrender.com). Interfața și API-ul rulează împreună, independent de calculatorul echipei. Fluxurile cloud testate includ autentificarea, uploadul PDF, generarea extractivă/AI, citările, exporturile PDF, studiul și clasele. Demo-ul folosește planul Free: datele pot fi resetate, iar furnizorul Gemini poate fi indisponibil; în acel caz este folosit fallbackul extractiv etichetat. Demo-ul Vercel anterior este retras din rolul de adresă oficială. Baza versiunii Live este integrată și publicată pe **main** și **flavius**; reparația nouă este publicată separat pe **flavius**; funcțiile pentru finanțare sunt prezentate separat în pagina „Ce urmează”.
 
 **Limitare observată la un PDF mare:** un document C++ de 127 de pagini, generat cu sesiunea de 120 de minute, a produs doar 3 lecții, 4 flashcarduri și 3 întrebări de quiz. Capturile arată și exemple care trebuie verificate pentru acuratețe semantică și fidelitatea citatelor. Generarea pentru documente mari este în evaluare și nu trebuie prezentată ca acoperire completă. Dovezile și handoff-ul tehnic sunt în [for_AI_Agents](for_AI_Agents/README.md) și [miscellaneous/ai-fail-2](miscellaneous/ai-fail-2/README.md).
 
@@ -81,7 +81,7 @@ node --test tests/proxy.test.mjs
 npm run build
 ```
 
-Ultima verificare locală a sursei pregătite pentru Render: **104/104 teste backend**, **91% acoperire pentru codul activ**, **5/5 teste proxy frontend**, lint fără erori/avertismente, TypeScript și build reușite.
+Ultima verificare locală a sursei pregătite pentru Render: **105/105 teste backend**, **91% acoperire pentru codul activ**, **5/5 teste proxy frontend**, lint fără erori/avertismente, TypeScript și build reușite.
 
 Sunt testate autentificarea și expirarea sesiunilor, izolarea între conturi, publicarea/ratingurile, revocarea accesului în clase, limba/citările, atacurile prin documente, uploadurile, PDF-ul Unicode și limitele de utilizare. Testele folosesc baze temporare și modele simulate, fără servicii plătite. Acoperirea configurată exclude generatoarele video/diagrame moștenite care nu sunt conectate la fluxul curent. GitHub Actions rulează verificările pentru push pe `flavius`/`main` și pentru PR-uri.
 

@@ -52,6 +52,22 @@ class SegmentPlanTests(unittest.TestCase):
 
 
 class SegmentAPITests(unittest.TestCase):
+    def test_duplicate_explanation_does_not_claim_pages_without_saved_lesson_citations(self):
+        from app.services.ai_analyzer import build_content_aware_curriculum
+        with closing(database.get_db_connection()) as conn:
+            explanation = conn.execute('SELECT long_explanation FROM lessons WHERE course_id=? LIMIT 1', (self.course_id,)).fetchone()[0]
+        curriculum = build_content_aware_curriculum('Programming', '', PAGES[12]['text'], 'en', [PAGES[12]])
+        curriculum['levels'][0]['lessons'] = curriculum['levels'][0]['lessons'][:1]
+        curriculum['levels'][0]['lessons'][0]['long_explanation'] = explanation
+        curriculum['flashcards'], curriculum['quizzes'] = [], []
+        with patch('app.routers.study.analyze_book_with_gemini', return_value=curriculum):
+            response = self.owner.post(self.base+'/generate-next', json={'segment_index': 1})
+        self.assertEqual(response.status_code, 200, response.text)
+        part = response.json()['segments'][1]
+        self.assertEqual(part['lesson_count'], 0)
+        self.assertEqual(part['cited_pages'], [])
+        self.assertNotIn(13, response.json()['cited_pages'])
+
     def setUp(self):
         self.folder = tempfile.TemporaryDirectory()
         self.root = Path(self.folder.name)

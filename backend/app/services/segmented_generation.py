@@ -50,10 +50,9 @@ def save_plan(conn, book_id, segments):
         [(book_id, s['segment_index'], json.dumps(s['spans']), s['study_minutes']) for s in segments])
 
 
-def complete_segment(conn, book_id, index, curriculum, lesson_count):
-    cited = sorted({c['page'] for level in curriculum['levels'] for lesson in level['lessons'] for c in lesson['source_citations']})
+def complete_segment(conn, book_id, index, curriculum, saved):
     conn.execute("""UPDATE generation_segments SET status='completed',generation_mode=?,cited_pages=?,lesson_count=?
-        WHERE book_id=? AND segment_index=?""", (curriculum['generation_mode'], json.dumps(cited), lesson_count, book_id, index))
+        WHERE book_id=? AND segment_index=?""", (curriculum['generation_mode'], json.dumps(saved['cited_pages']), saved['lesson_count'], book_id, index))
     modes = {row[0] for row in conn.execute("SELECT generation_mode FROM generation_segments WHERE book_id=? AND status='completed'", (book_id,))}
     mode = next(iter(modes)) if len(modes) == 1 else 'mixed'
     conn.execute('UPDATE books SET generation_mode=? WHERE id=?', (mode, book_id))
@@ -87,7 +86,7 @@ def append_curriculum(conn, course_id, curriculum):
         return ' '.join(text.casefold().split())
     existing = {identity(row[0]) for row in conn.execute('SELECT long_explanation FROM lessons WHERE course_id=?', (course_id,))}
     level_number = conn.execute('SELECT COUNT(*) FROM levels WHERE course_id=?', (course_id,)).fetchone()[0]
-    added = 0
+    added, cited = 0, set()
     for level in curriculum['levels']:
         lessons = []
         for lesson in level['lessons']:
@@ -109,6 +108,7 @@ def append_curriculum(conn, course_id, curriculum):
                  *[json.dumps(lesson.get(field, []), ensure_ascii=False) for field in ('key_ideas','practical_insights','examples','action_items')],
                  '', lesson.get('duration') or '5 min', json.dumps(lesson['source_citations'], ensure_ascii=False), '[]'))
             added += 1
+            cited.update(c['page'] for c in lesson['source_citations'])
     for table, prefix, fields in [('flashcards', 'fc-', ('question','answer','category')),
                                   ('quizzes', 'qz-', ('question','options','correct_index','explanation'))]:
         questions = {identity(row[0]) for row in conn.execute(f'SELECT question FROM {table} WHERE course_id=?', (course_id,))}
@@ -125,4 +125,4 @@ def append_curriculum(conn, course_id, curriculum):
     conn.execute('''UPDATE courses SET level_count=(SELECT COUNT(*) FROM levels WHERE course_id=?),
         lesson_count=(SELECT COUNT(*) FROM lessons WHERE course_id=?), quiz_count=(SELECT COUNT(*) FROM quizzes WHERE course_id=?),
         flashcard_count=(SELECT COUNT(*) FROM flashcards WHERE course_id=?) WHERE id=?''', (course_id,)*5)
-    return added
+    return {'lesson_count': added, 'cited_pages': sorted(cited)}

@@ -148,14 +148,15 @@ async def upload_book(file: Optional[UploadFile] = File(None), text: Optional[st
                 if segments:
                     save_plan(conn, book_id, segments)
                     complete_segment(conn, book_id, 0, curriculum, added)
+                counts = dict(conn.execute('SELECT level_count,lesson_count,quiz_count,flashcard_count FROM courses WHERE id=?', (course_id,)).fetchone())
         saved = True
         return {"status": "ready", "book_id": book_id, "course_id": course_id, "title": display_title, "author": display_author,
             "language": selected_language, "detected_language": detection["language"], "language_confidence": detection["confidence"],
             "visibility": visibility, "study_minutes": study_minutes, "depth": depth, "keywords": curriculum["keywords"],
             "focus_keywords": focus,
             "generation_mode": curriculum["generation_mode"], "page_kind": document["page_kind"],
-            "levels_count": len(levels), "lessons_count": len(lessons), "quizzes_count": len(curriculum["quizzes"]),
-            "flashcards_count": len(curriculum["flashcards"])}
+            "levels_count": counts['level_count'], "lessons_count": counts['lesson_count'], "quizzes_count": counts['quiz_count'],
+            "flashcards_count": counts['flashcard_count']}
     finally:
         if not saved:
             path.unlink(missing_ok=True)
